@@ -830,7 +830,8 @@ async def show_splash_screen():
     
     # Simulate loading steps
     loading_steps = [
-        ("Checking configuration...", 10),
+        ("Starting application...", 10),
+        ("Checking configuration...", 20),
         ("Loading resources...", 30),
         ("Preparing interface...", 50),
         ("Connecting to Roblox...", 70),
