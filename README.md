@@ -12,6 +12,11 @@ A GUI application to monitor Roblox transactions and Robux balance changes in re
 - [x] Customizable monitoring intervals
 - [x] Detailed logging system
 
+## TODO
+
+- [x] Automatic Updates
+- [x] Dropdown menu like past day month year total
+
 ## Configuration
 
 The application requires the following configuration:
