@@ -320,21 +320,6 @@ def validate_config():
     except requests.exceptions.RequestException as e:
         return False, f"Could not connect to Roblox API: {str(e)}"
     
-    # Test Discord webhook
-    try:
-        test_embed = {
-            "title": "🔔 Testing Webhook Connection",
-            "description": "This is a test message to verify the webhook configuration.",
-            "color": 0x00ff00
-        }
-        test_response = rate_limited_request('POST', config["DISCORD_WEBHOOK_URL"], json={"embeds": [test_embed]}, timeout=10)
-        if test_response.status_code == 404:
-            return False, "Invalid Discord webhook URL. The webhook may have been deleted."
-        elif test_response.status_code != 204:  # Discord returns 204 for successful webhook posts
-            return False, f"Invalid Discord webhook URL. Status code: {test_response.status_code}"
-    except requests.exceptions.RequestException as e:
-        return False, f"Could not connect to Discord webhook: {str(e)}"
-    
     return True, "Configuration is valid"
 
 def handle_auth_error():
