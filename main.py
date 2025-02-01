@@ -3,12 +3,31 @@ import time
 import json
 import os
 import threading
+import asyncio
 import tkinter as tk
 from io import BytesIO
 from PIL import Image, ImageTk
 from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
+
+# Global variables for GUI elements
+monitoring_event = None
+window = None
+progress_label = None
+progress_var = None
+start_button = None
+stop_button = None
+save_button = None
+discord_webhook_input = None
+roblox_cookie_input = None
+emoji_id_input = None
+emoji_name_input = None
+timer_input = None
+roblox_transaction_balance_input = None
+roblox_transaction_balance_label = None
+roblox_cookie_label = None
+log_output = None
 
 # Load configuration from the JSON file
 APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
@@ -81,7 +100,9 @@ def save_config_to_file(config):
         "DISCORD_WEBHOOK_URL": sanitize_input(config["DISCORD_WEBHOOK_URL"]),
         "ROBLOSECURITY": sanitize_input(config["ROBLOSECURITY"]),
         "DISCORD_EMOJI_ID": sanitize_input(config["DISCORD_EMOJI_ID"]),
-        "CHECK_INTERVAL": sanitize_input(config["CHECK_INTERVAL"])
+        "DISCORD_EMOJI_NAME": sanitize_input(config["DISCORD_EMOJI_NAME"]),
+        "CHECK_INTERVAL": sanitize_input(config["CHECK_INTERVAL"]),
+        "TOTAL_CHECKS_TYPE": sanitize_input(config["TOTAL_CHECKS_TYPE"])
     }
     
     if not os.path.exists(APP_DIR):
@@ -95,7 +116,9 @@ config = {
     "DISCORD_WEBHOOK_URL": "",
     "ROBLOSECURITY": "",
     "DISCORD_EMOJI_ID": "",
-    "CHECK_INTERVAL": "60"  # Default check interval of 60 seconds
+    "DISCORD_EMOJI_NAME": "",  
+    "CHECK_INTERVAL": "60",  # Default check interval of 60 seconds
+    "TOTAL_CHECKS_TYPE": "Day"
 }
 
 icon_url = "https://raw.githubusercontent.com/MrAndiGamesDev/Roblox-Transaction-Application/refs/heads/main/Robux.png"  # Replace with actual URL
@@ -104,8 +127,22 @@ if not os.path.exists(CONFIG_FILE):
     save_config_to_file(config)
     logger.info(f"Config file '{CONFIG_FILE}' created with default values.")
 else:
-    with open(CONFIG_FILE, "r") as file:
-        config = json.load(file)
+    try:
+        with open(CONFIG_FILE, "r") as file:
+            loaded_config = json.load(file)
+            
+        # Ensure all default keys are present
+        for key, default_value in config.items():
+            if key not in loaded_config:
+                loaded_config[key] = default_value
+                logger.warning(f"Missing key '{key}' in config. Using default value: {default_value}")
+        
+        config = loaded_config
+        save_config_to_file(config)  # Update config file with any missing keys
+    except json.JSONDecodeError:
+        logger.error(f"Invalid JSON in config file {CONFIG_FILE}. Using default configuration.")
+    except Exception as e:
+        logger.error(f"Error loading config file: {e}. Using default configuration.")
 
 # Discord webhook URL
 DISCORD_WEBHOOK_URL = config["DISCORD_WEBHOOK_URL"]
@@ -115,9 +152,9 @@ ALIVE_TIME = 3600
 
 MONITORING_ROBUX = False
 
-DATE_TYPE = "Year"
+DATE_TYPE = config["TOTAL_CHECKS_TYPE"]
 
-EMOJI_NAME = "Robux"
+EMOJI_NAME = config.get("DISCORD_EMOJI_NAME", "Robux")
 EMOJI_ID = config["DISCORD_EMOJI_ID"]
 
 COOKIES = {
@@ -323,7 +360,9 @@ def validate_config():
     if not config["ROBLOSECURITY"]:
         return False, "Roblox Security Cookie is required"
     if not config["DISCORD_EMOJI_ID"]:
-        return False, "Discord Emoji ID is required"
+        return False, "Emoji ID is required"
+    if not config["DISCORD_EMOJI_NAME"]:
+        return False, "Emoji Name is required"
     if not config["CHECK_INTERVAL"]:
         return False, "Check Interval is required"
     
@@ -364,6 +403,8 @@ def validate_config():
 
 def handle_auth_error():
     """Handle authentication error by stopping monitoring and updating UI."""
+    global monitoring_event, progress_label, progress_var, start_button, stop_button, roblox_cookie_input, roblox_cookie_label, save_button
+    
     monitoring_event.clear()  # Stop monitoring
     progress_label.config(text="Authentication Error - Update Cookie")
     progress_var.set(0)
@@ -377,61 +418,30 @@ def handle_auth_error():
     # Enable save button
     save_button.config(state='normal')
     
-    messagebox.showerror("Authentication Error", 
-                        "Your Roblox security cookie has expired.\n\n"
-                        "1. Go to Roblox.com and log in\n"
-                        "2. Press F12 to open Developer Tools\n"
-                        "3. Go to Application > Cookies > .ROBLOSECURITY\n"
-                        "4. Copy the cookie value and paste it here\n"
-                        "5. Click Save Config and try again")
-
-def main_loop():
-    """Start the transaction and Robux balance checks on intervals."""
-    while monitoring_event.is_set():
-        try:
-            check_transactions()
-            check_robux()
-            
-            # Get the current check interval
-            try:
-                check_interval = int(timer_input.get())
-                if check_interval < 10:  # Minimum 10 seconds
-                    check_interval = 10
-                    timer_input.delete(0, tk.END)
-                    timer_input.insert(0, "10")
-            except ValueError:
-                check_interval = 60  # Default check interval
-                timer_input.delete(0, tk.END)
-                timer_input.insert(0, str(60))
-            
-            # Update progress bar
-            for i in range(check_interval):
-                if not monitoring_event.is_set():
-                    break
-                progress_var.set((i + 1) / check_interval * 100)
-                time_left = check_interval - i - 1
-                progress_label.config(text=f"Next check in {time_left} seconds")
-                time.sleep(1)
-                window.update()
-        except Exception as e:
-            logger.error(f"Error in monitoring loop: {str(e)}")
-            time.sleep(5)  # Wait before retrying
+    messagebox.showerror(
+        "Authentication Error", 
+        "Your Roblox security cookie has expired.\n\n"
+        "1. Go to Roblox.com and log in\n"
+        "2. Press F12 to open Developer Tools\n"
+        "3. Go to Application > Cookies > .ROBLOSECURITY\n"
+        "4. Copy the cookie value and paste it here\n"
+        "5. Click Save Config and try again"
+    )
 
 def start_monitoring():
     """Start monitoring transactions and Robux."""
-    if monitoring_event.is_set():
-        logger.warning("Monitoring is already running")
-        return
-        
-    # Validate configuration before starting
-    is_valid, message = validate_config()
-    if not is_valid:
-        logger.error(f"Invalid configuration: {message}")
-        messagebox.showerror("Configuration Error", message)
-        return
-    
+    global monitoring_event, window, progress_var, progress_label
+    logger.info("Starting Roblox Transaction & Robux Monitoring application...")
     try:
-        progress_label.config(text="Starting monitoring...")
+        # Validate configuration before starting
+        is_valid, message = validate_config()
+        if not is_valid:
+            logger.error(f"Invalid configuration: {message}")
+            messagebox.showerror("Configuration Error", message)
+            return
+        
+        # Flag to control the loop
+        monitoring_event = threading.Event()
         monitoring_event.set()
         
         # Run the main loop in a separate thread
@@ -452,6 +462,8 @@ def start_monitoring():
 
 def stop_monitoring():
     """Stop monitoring transactions and Robux."""
+    global monitoring_event, progress_label, progress_var, start_button, stop_button
+    
     try:
         monitoring_event.clear()
         progress_var.set(0)
@@ -465,6 +477,52 @@ def stop_monitoring():
         error_msg = f"Error stopping monitoring: {str(e)}"
         logger.error(error_msg)
         messagebox.showerror("Error", error_msg)
+
+def main_loop():
+    """Start the transaction and Robux balance checks on intervals."""
+    global monitoring_event, progress_label, progress_var, timer_input, window
+    
+    if not monitoring_event.is_set():
+        return
+
+    try:
+        check_transactions()
+        check_robux()
+        
+        # Get the current check interval
+        try:
+            check_interval = int(timer_input.get())
+            if check_interval < 10:  # Minimum 10 seconds
+                check_interval = 10
+                window.after(0, lambda: timer_input.delete(0, tk.END))
+                window.after(0, lambda: timer_input.insert(0, "10"))
+        except ValueError:
+            check_interval = 60  # Default check interval
+            window.after(0, lambda: timer_input.delete(0, tk.END))
+            window.after(0, lambda: timer_input.insert(0, str(60)))
+        
+        # Update progress bar using after method
+        def update_progress(current_second):
+            if not monitoring_event.is_set():
+                return
+            
+            progress = (current_second + 1) / check_interval * 100
+            time_left = check_interval - current_second - 1
+            
+            window.after(0, lambda: progress_var.set(progress))
+            window.after(0, lambda: progress_label.config(text=f"Next check in {time_left} seconds"))
+            
+            if current_second + 1 < check_interval and monitoring_event.is_set():
+                window.after(1000, lambda: update_progress(current_second + 1))
+            elif monitoring_event.is_set():
+                window.after(0, main_loop)
+        
+        update_progress(0)
+        
+    except Exception as e:
+        logger.error(f"Error in monitoring loop: {str(e)}")
+        if monitoring_event.is_set():
+            window.after(5000, main_loop)  # Retry after 5 seconds
 
 def apply_styles(widget):
     """Apply common styles to widgets.""" 
@@ -567,7 +625,7 @@ def show_tutorial(field_name):
             "To get your Discord Emoji ID:\n\n"
             "1. In Discord, type '\\' followed by your emoji name\n"
             "2. The emoji ID will appear in the format <:name:ID>\n"
-            "3. Copy only the numbers (ID) part\n"
+            "3. Copy only the numbers or copy the emoji link (ID) part\n"
             "4. Paste the ID here"
         )
     }
@@ -577,71 +635,271 @@ def show_tutorial(field_name):
 
 def save_config():
     """Save the configuration with validation and tutorials."""
+    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_input
+    global start_button, progress_label, roblox_cookie_label, save_button, window
+
     try:
-        webhook_url = discord_webhook_input.get()
-        roblosecurity = roblox_cookie_input.get()
-        emoji_id = emoji_id_input.get()
-        interval = timer_input.get()
-
-        # Check for empty fields and show tutorials
-        if not webhook_url or webhook_url.isspace():
-            show_tutorial("webhook")
-            return
-        if not roblosecurity or roblosecurity.isspace():
-            show_tutorial("cookie")
-            return
-        if not emoji_id or emoji_id.isspace():
-            show_tutorial("emoji")
-            return
-        if not interval or interval.isspace():
-            show_tutorial("interval")
+        # Check if window is initialized
+        if window is None:
+            logger.error("Application window is not initialized")
+            messagebox.showerror(
+                "Configuration Error", 
+                "Application is not fully initialized. Please restart the application."
+            )
             return
 
-        # Validate inputs
-        if not validate_webhook_url(webhook_url):
-            messagebox.showerror("Invalid Input", "Invalid Discord webhook URL format")
-            show_tutorial("webhook")
-            return
-        if not validate_emoji_id(emoji_id):
-            messagebox.showerror("Invalid Input", "Invalid Discord emoji ID format")
-            show_tutorial("emoji")
-            return
-            
-        # Validate Roblox cookie format
-        is_valid_cookie, cookie_message = validate_roblosecurity(roblosecurity)
-        if not is_valid_cookie:
-            messagebox.showerror("Invalid Input", cookie_message)
-            show_tutorial("cookie")
-            return
-        roblosecurity = cookie_message  # Use the cleaned cookie value
+        # Comprehensive check for input fields
+        input_fields = [
+            discord_webhook_input, roblox_cookie_input, emoji_id_input, 
+            emoji_name_input, timer_input, roblox_transaction_balance_input
+        ]
         
-        config["DISCORD_WEBHOOK_URL"] = webhook_url
-        config["ROBLOSECURITY"] = roblosecurity
-        config["DISCORD_EMOJI_ID"] = emoji_id
-        config["CHECK_INTERVAL"] = interval
+        # Check if any of the input fields are None
+        if any(field is None for field in input_fields):
+            logger.error("Some configuration input fields are not fully initialized")
+            messagebox.showerror(
+                "Configuration Error", 
+                "Application is not fully initialized. Please restart the application."
+            )
+            return
+
+        # Get input values safely
+        webhook_url = discord_webhook_input.get().strip()
+        roblosecurity = roblox_cookie_input.get().strip()
+        emoji_id = emoji_id_input.get().strip()
+        emoji_name = emoji_name_input.get().strip()  
+        interval = timer_input.get().strip()
+        
+        # Default to "Year" if transaction balance input is empty or not set
+        total_checks_type = roblox_transaction_balance_input.get().strip() or "Year"
+
+        # Comprehensive input validation
+        validation_errors = []
+
+        # Webhook URL validation
+        if not webhook_url:
+            validation_errors.append("Discord Webhook URL is required")
+        elif not validate_webhook_url(webhook_url):
+            validation_errors.append("Invalid Discord webhook URL format")
+
+        # Roblox Security Cookie validation
+        if not roblosecurity:
+            validation_errors.append("Roblox Security Cookie is required")
+        else:
+            is_valid_cookie, cookie_message = validate_roblosecurity(roblosecurity)
+            if not is_valid_cookie:
+                validation_errors.append(cookie_message)
+
+        # Emoji ID validation
+        if not emoji_id:
+            validation_errors.append("Emoji ID is required")
+        elif not validate_emoji_id(emoji_id):
+            validation_errors.append("Invalid Discord emoji ID format")
+
+        # Emoji Name validation
+        if not emoji_name:
+            validation_errors.append("Emoji Name is required")
+
+        # Check Interval validation
+        if not interval:
+            validation_errors.append("Check Interval is required")
+        else:
+            try:
+                interval_value = int(interval)
+                if interval_value < 10:
+                    validation_errors.append("Check Interval must be at least 10 seconds")
+            except ValueError:
+                validation_errors.append("Check Interval must be a valid number")
+
+        # If there are validation errors, show them and return
+        if validation_errors:
+            error_message = "Please correct the following errors:\n\n" + "\n".join(f"• {error}" for error in validation_errors)
+            logger.warning(f"Configuration validation failed: {error_message}")
+            messagebox.showerror("Configuration Validation Failed", error_message)
+            return
+
+        # If we've passed all validations, update the config
+        config.update({
+            "DISCORD_WEBHOOK_URL": webhook_url,
+            "ROBLOSECURITY": roblosecurity,
+            "DISCORD_EMOJI_ID": emoji_id,
+            "DISCORD_EMOJI_NAME": emoji_name,
+            "CHECK_INTERVAL": interval,
+            "TOTAL_CHECKS_TYPE": total_checks_type
+        })
+
+        # Save configuration
         save_config_to_file(config)
         
-        # Reset UI styles
-        roblox_cookie_input.config(bg="#2e3b4e")
-        roblox_cookie_label.config(fg="white")
+        # Reset UI styles for cookie input
+        if roblox_cookie_input and roblox_cookie_label:
+            roblox_cookie_input.config(bg="#2e3b4e")
+            roblox_cookie_label.config(fg="white")
         
-        # Re-enable start button if config is valid
-        is_valid, _ = validate_config()
+        # Re-enable start button and update progress label if config is valid
+        is_valid, validation_message = validate_config()
         if is_valid:
-            start_button.config(state='normal')
-            progress_label.config(text="Monitoring inactive")
-        
-        logger.info("Configuration saved successfully")
-        messagebox.showinfo("Success", "Configuration Saved Successfully!")
-    except Exception as e:
-        error_msg = f"Error saving configuration: {str(e)}"
-        logger.error(error_msg)
-        messagebox.showerror("Error", error_msg)
+            if start_button:
+                start_button.config(state='normal')
+            if save_button:
+                save_button.config(state='normal')
+            if progress_label:
+                progress_label.config(text="Monitoring inactive")
+            logger.info("Configuration saved and validated successfully")
+            messagebox.showinfo("Success", "Configuration Saved Successfully!")
+        else:
+            logger.warning(f"Configuration saved but validation failed: {validation_message}")
+            messagebox.showwarning("Partial Success", f"Configuration saved, but: {validation_message}")
 
-if __name__ == "__main__":
+    except Exception as e:
+        error_msg = f"Unexpected error saving configuration: {str(e)}"
+        logger.error(error_msg)
+        messagebox.showerror("Unexpected Error", error_msg)
+
+async def show_splash_screen():
+    """Create a splash screen with simulated loading."""
+    # Create temporary root window
+    root = tk.Tk()
+    root.withdraw()
+    
+    # Create splash screen
+    splash = tk.Toplevel(root)
+    splash.title("Roblox Transaction Monitor")
+    splash.overrideredirect(True)  # Remove window decorations
+    
+    # Calculate center position
+    width = 400
+    height = 200
+    screen_width = splash.winfo_screenwidth()
+    screen_height = splash.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+    splash.geometry(f"{width}x{height}+{x}+{y}")
+    
+    # Configure splash screen appearance
+    splash.configure(bg="#1d2636")
+    splash_frame = tk.Frame(splash, bg="#2e3b4e", bd=2, relief="solid")
+    splash_frame.place(relx=0.5, rely=0.5, anchor="center", width=380, height=180)
+    
+    # Add application name
+    title_label = tk.Label(
+        splash_frame, 
+        text="Roblox Transaction\nMonitoring", 
+        font=("Arial", 16, "bold"),
+        bg="#2e3b4e",
+        fg="white"
+    )
+    title_label.pack(pady=(20, 10))
+    
+    # Add loading text
+    status_label = tk.Label(
+        splash_frame,
+        text="Initializing...",
+        font=("Arial", 10),
+        bg="#2e3b4e",
+        fg="white"
+    )
+    status_label.pack(pady=(0, 10))
+    
+    # Configure progress bar style
+    style = ttk.Style()
+    style.configure(
+        "Splash.Horizontal.TProgressbar",
+        troughcolor='#1a1a1a',
+        background='#4CAF50',
+        darkcolor='#4CAF50',
+        lightcolor='#4CAF50',
+        bordercolor='#1a1a1a'
+    )
+    
+    # Add progress bar
+    progress_var = tk.DoubleVar()
+    progress_bar = ttk.Progressbar(
+        splash_frame,
+        style="Splash.Horizontal.TProgressbar",
+        variable=progress_var,
+        length=300,
+        mode="determinate"
+    )
+    progress_bar.pack(pady=10)
+    
+    def update_progress(text, value):
+        status_label.config(text=text)
+        progress_var.set(value)
+        splash.update()
+    
+    # Simulate loading steps
+    loading_steps = [
+        ("Checking configuration...", 10),
+        ("Loading resources...", 30),
+        ("Preparing interface...", 50),
+        ("Connecting to Roblox...", 70),
+        ("Validating credentials...", 90),
+        ("Finalizing...", 100)
+    ]
+    
+    # Perform actual initialization tasks
+    async def initialize_app():
+        nonlocal splash, root
+        
+        # Perform initialization tasks with progress updates
+        for text, progress in loading_steps:
+            update_progress(text, progress)
+            
+            # Simulate some async work
+            if progress == 30:
+                # Load application icon
+                try:
+                    response = rate_limited_request('GET', icon_url)
+                    response.raise_for_status()
+                except Exception as e:
+                    logger.warning(f"Failed to load application icon: {e}")
+            
+            elif progress == 50:
+                # Validate configuration
+                try:
+                    is_valid, message = validate_config()
+                    if not is_valid:
+                        logger.warning(f"Configuration validation warning: {message}")
+                except Exception as e:
+                    logger.error(f"Configuration validation error: {e}")
+            
+            elif progress == 70:
+                # Test Roblox API connectivity
+                try:
+                    test_response = rate_limited_request(
+                        'GET', 
+                        "https://users.roblox.com/v1/users/authenticated", 
+                        cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
+                        timeout=10
+                    )
+                    if test_response.status_code != 200:
+                        logger.warning("Roblox API connectivity test failed")
+                except Exception as e:
+                    logger.error(f"Roblox API connectivity error: {e}")
+            
+            # Small delay to simulate work
+            await asyncio.sleep(0.3)
+        
+        # Close splash screen
+        splash.destroy()
+        root.destroy()
+    
+    # Run initialization
+    await initialize_app()
+    
+    return True
+
+async def Initialize_gui():
+    # Remove the existing splash screen code and replace with the new approach
     logger.info("Starting Roblox Transaction & Robux Monitoring application...")
-    # Run GUI in a separate thread
+    
     try:
+        # Show splash screen and wait for initialization
+        await show_splash_screen()
+        
+        # Create main window
+        global window
         window = tk.Tk()
         response = rate_limited_request('GET', icon_url)
         response.raise_for_status()  # Raise an error for failed requests
@@ -655,11 +913,12 @@ if __name__ == "__main__":
         window.iconphoto(False, icon)
         window.resizable(False, False)
         window.title("Roblox Transaction & Robux Monitoring")
-
-        # Set the background color of the window
         window.config(bg="#1d2636")
-        window.geometry("800x700")  # Increased height for progress bar
-
+        window.geometry("800x700")
+        
+        # Rest of the existing GUI setup code remains the same
+        # ... (keep the existing GUI initialization code)
+        
         # Create main frame
         main_frame = tk.Frame(window, bg="#1d2636")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -671,6 +930,8 @@ if __name__ == "__main__":
         # Input fields for configuration
         discord_webhook_label = tk.Label(left_frame, text="DISCORD WEBHOOK URL", bg="#1d2636", fg="white", font=("Arial", 10))
         discord_webhook_label.pack(pady=(5, 0))
+
+        global discord_webhook_input
         discord_webhook_input = tk.Entry(left_frame, width=40, show="*")
         discord_webhook_input.insert(0, config["DISCORD_WEBHOOK_URL"])
         apply_styles(discord_webhook_input)
@@ -679,6 +940,8 @@ if __name__ == "__main__":
         # Input fields for configuration
         roblox_cookie_label = tk.Label(left_frame, text=".ROBLOSECURITY", bg="#1d2636", fg="white", font=("Arial", 10))
         roblox_cookie_label.pack(pady=(5, 0))
+
+        global roblox_cookie_input
         roblox_cookie_input = tk.Entry(left_frame, width=40, show="*")
         roblox_cookie_input.insert(0, config["ROBLOSECURITY"])
         apply_styles(roblox_cookie_input)
@@ -687,28 +950,54 @@ if __name__ == "__main__":
         # Input fields for configuration
         emoji_id_label = tk.Label(left_frame, text="Emoji ID", bg="#1d2636", fg="white", font=("Arial", 10))
         emoji_id_label.pack(pady=(5, 0))
+
+        global emoji_id_input
         emoji_id_input = tk.Entry(left_frame, width=40)
         emoji_id_input.insert(0, config["DISCORD_EMOJI_ID"])
         apply_styles(emoji_id_input)
         emoji_id_input.pack(pady=5)
 
+        # Input fields for configuration
+        emoji_name_label = tk.Label(left_frame, text="Emoji Name", bg="#1d2636", fg="white", font=("Arial", 10))
+        emoji_name_label.pack(pady=(5, 0))
+
+        global emoji_name_input
+        emoji_name_input = tk.Entry(left_frame, width=40)
+        emoji_name_input.insert(0, config.get("DISCORD_EMOJI_NAME", ""))
+        apply_styles(emoji_name_input)
+        emoji_name_input.pack(pady=5)
+
         # Add timer input field
         timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
         timer_label.pack(pady=(5, 0))
+
+        global timer_input
         timer_input = tk.Entry(left_frame, width=40)
         timer_input.insert(0, str(config["CHECK_INTERVAL"]))
         apply_styles(timer_input)
         timer_input.pack(pady=5)
+
+        # Add total checks transaction/balance field
+        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks (Transaction/Balance) Like (Day Month Year)", bg="#1d2636", fg="white", font=("Arial", 10))
+        roblox_transaction_balance_label.pack(pady=(5, 0))
+
+        global roblox_transaction_balance_input
+        roblox_transaction_balance_input = tk.Entry(left_frame, width=40)
+        roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
+        apply_styles(roblox_transaction_balance_input)
+        roblox_transaction_balance_input.pack(pady=5)
 
         # Buttons
         save_button = tk.Button(left_frame, text="Save Config", command=save_config)
         apply_button_styles(save_button)
         save_button.pack(pady=10)
 
+        global start_button
         start_button = tk.Button(left_frame, text="Start", command=start_monitoring)
         apply_button_styles(start_button)
         start_button.pack(pady=10)
 
+        global stop_button
         stop_button = tk.Button(left_frame, text="Stop", command=stop_monitoring)
         apply_button_styles(stop_button)
         stop_button.pack(pady=10)
@@ -722,26 +1011,32 @@ if __name__ == "__main__":
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Custom.Horizontal.TProgressbar",
-                       troughcolor='#1a1a1a',
-                       background='#4CAF50',
-                       darkcolor='#4CAF50',
-                       lightcolor='#4CAF50',
-                       bordercolor='#1a1a1a')
+            troughcolor='#1a1a1a',
+            background='#4CAF50',
+            darkcolor='#4CAF50',
+            lightcolor='#4CAF50',
+            bordercolor='#1a1a1a'
+        )
 
         # Progress variables
+        global progress_var
         progress_var = tk.DoubleVar()
-        progress_label = tk.Label(progress_frame, 
-                                text="Monitoring inactive", 
-                                bg="#1d2636", 
-                                fg="white", 
-                                font=("Arial", 10))
+        global progress_label
+        progress_label = tk.Label(
+            progress_frame, 
+            text="Monitoring inactive", 
+            bg="#1d2636", 
+            fg="white", 
+            font=("Arial", 10)
+        )
         progress_label.pack(side=tk.TOP, pady=(0, 5))
 
         progress_bar = ttk.Progressbar(progress_frame,
-                                     style="Custom.Horizontal.TProgressbar",
-                                     variable=progress_var,
-                                     mode='determinate',
-                                     length=780)
+            style="Custom.Horizontal.TProgressbar",
+            variable=progress_var,
+            mode='determinate',
+            length=780
+        )
         progress_bar.pack(fill=tk.X)
 
         # Create right frame for log output
@@ -763,12 +1058,43 @@ if __name__ == "__main__":
             log_output.configure(state='disabled')
             logger.info("Log output cleared")
 
+        def update_log_output():
+            """Manually trigger a refresh of the log output."""
+            try:
+                # Retrieve the current log contents from the text widget
+                log_output.configure(state='normal')
+                current_logs = log_output.get(1.0, tk.END)
+                
+                # If logs are empty or minimal, add a refresh message
+                if not current_logs.strip():
+                    log_output.insert(tk.END, "No logs available.\n")
+                
+                # Scroll to the end
+                log_output.see(tk.END)
+                log_output.configure(state='disabled')
+                
+                logger.info("Log output manually updated")
+            except Exception as e:
+                logger.error(f"Error updating log output: {e}")
+                
+                # Show error in log output
+                log_output.configure(state='normal')
+                log_output.insert(tk.END, f"\nError updating logs: {e}\n")
+                log_output.see(tk.END)
+                log_output.configure(state='disabled')
+
         # Add clear button
         clear_button = tk.Button(log_header, text="Clear Logs", command=clear_logs)
         apply_button_styles(clear_button)
         clear_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
+        # Add refresh button
+        refresh_button = tk.Button(log_header, text="Refresh Logs", command=update_log_output)
+        apply_button_styles(refresh_button)
+        refresh_button.pack(side=tk.RIGHT, padx=5, pady=5)
+
         # Add log output text widget with improved styling
+        global log_output
         log_output = scrolledtext.ScrolledText(
             right_frame, 
             height=30, 
@@ -782,19 +1108,73 @@ if __name__ == "__main__":
         log_output.pack(fill=tk.BOTH, expand=True)
         log_output.configure(state='disabled')
 
+        # Add bottom right update logs button
+        bottom_log_frame = tk.Frame(right_frame, bg="#1d2636")
+        bottom_log_frame.pack(fill=tk.X, pady=(5,0))
+
+        def update_logs_button_action():
+            """Action for updating logs from the current log output."""
+            try:
+                # Retrieve the current log contents
+                log_output.configure(state='normal')
+                current_logs = log_output.get(1.0, tk.END)
+                log_output.configure(state='disabled')
+                
+                # If logs are empty or minimal, add a refresh message
+                if not current_logs.strip():
+                    current_logs = "No logs available.\n"
+                
+                # Create a new log viewer window
+                def create_log_viewer_window(logs):
+                    log_viewer = tk.Toplevel(window)
+                    log_viewer.title("Log Viewer")
+                    log_viewer.geometry("600x400")
+                    log_viewer.config(bg="#1d2636")
+
+                    log_text = scrolledtext.ScrolledText(
+                        log_viewer, 
+                        wrap=tk.WORD, 
+                        font=("Consolas", 10),
+                        bg="#1a1a1a", 
+                        fg="white"
+                    )
+                    log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+                    log_text.insert(tk.END, logs)
+                    log_text.configure(state='disabled')
+
+                create_log_viewer_window(current_logs)
+                
+                logger.info("Log output manually updated and displayed in a new window")
+            except Exception as e:
+                logger.error(f"Error updating logs: {e}")
+                
+                # Show error in a message box
+                messagebox.showerror("Error", f"Could not update logs: {e}")
+
+        bottom_update_logs_button = tk.Button(
+            bottom_log_frame, 
+            text="Update Logs", 
+            command=update_logs_button_action
+        )
+        apply_button_styles(bottom_update_logs_button)
+        bottom_update_logs_button.pack(side=tk.RIGHT, padx=5)
+
         # Create and configure GUI log handler
         gui_handler = GUILogHandler(log_output)
-        logger.add(gui_handler.write, format="{message}")
+        logger.add(gui_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
 
-        # Log initial message
-        logger.info("Application started - Waiting for configuration...")
+        # Configure buttons and initial state
+        save_button.config(state='normal')
+        start_button.config(state='normal')
+        stop_button.config(state='disabled')
 
-        # Flag to control the loop
-        monitoring_event = threading.Event()
-
-        # Start the GUI
-        window.protocol("WM_DELETE_WINDOW", window.quit)
+        # Start the main event loop
         window.mainloop()
+
+        return True
     except Exception as e:
-        logger.error(f"Error starting the GUI thread: {e}")
-        messagebox.showerror("Error", f"Error starting the GUI thread: {e}")
+        logger.error(f"Error initializing GUI: {e}")
+        messagebox.showerror("Initialization Error", str(e))
+
+if __name__ == "__main__":
+    asyncio.run(Initialize_gui())
