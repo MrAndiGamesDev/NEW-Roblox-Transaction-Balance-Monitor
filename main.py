@@ -3,12 +3,11 @@ import time
 import json
 import os
 import threading
-import pytz
 import tkinter as tk
-from datetime import datetime
 from loguru import logger
-from tkinter import messagebox
+from tkinter import messagebox, scrolledtext, ttk
 from alive_progress import alive_bar
+from datetime import datetime
 
 # Load configuration from the JSON file
 CONFIG_FILE = "config.json"
@@ -77,9 +76,6 @@ if not os.path.exists(FOLDERNAME):
 TRANSACTION_DATA_FILE = os.path.join(FOLDERNAME, "last_transaction_data.json")
 ROBUX_FILE = os.path.join(FOLDERNAME, "last_robux.json")
 
-# Define the timezone (for example, 'US/Eastern' for Eastern Standard Time)
-TIMEZONE = 'US/Eastern'
-
 def abbreviate_number(num):
     """Convert a large number to a more readable abbreviated format, supporting negative values.""" 
     abs_num = abs(num)
@@ -96,12 +92,6 @@ def abbreviate_number(num):
         return f"{num / 1_000:.2f}K"
     else:
         return str(num)
-
-def get_current_time_in_timezone():
-    """Get the current time in the defined timezone with AM/PM.""" 
-    timezone = pytz.timezone(TIMEZONE)
-    current_time = datetime.now(timezone)
-    return current_time
 
 def load_last_transaction_data():
     """Load the last known transaction data from a file. Initialize with defaults if the file doesn't exist.""" 
@@ -159,15 +149,14 @@ def save_last_robux(robux):
 
 def send_discord_notification_for_transactions(changes):
     """Send a notification to the Discord webhook for transaction data changes with an embed.""" 
-    current_time = get_current_time_in_timezone().strftime('%m/%d/%Y %I:%M:%S %p')  # AM/PM format added
 
     embed = {
         "title": "🔔Roblox Transaction Data Changed!",
-        "description": f"The transaction data has been updated at {current_time}.",
+        "description": f"The transaction data has been updated",
         "fields": [{"name": key, "value": f"From <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(old)} To <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(new)}", "inline": False} for key, (old, new) in changes.items()],
         "color": 0x00ff00,
         "footer": {
-            "text": f"Roblox Transaction Has Fetched at {current_time}"
+            "text": f"Roblox Transaction Has Fetched"
         }
     }
 
@@ -181,7 +170,6 @@ def send_discord_notification_for_transactions(changes):
 
 def send_discord_notification_for_robux(robux, last_robux):
     """Send a notification to the Discord webhook for Robux balance changes with an embed.""" 
-    current_time = get_current_time_in_timezone().strftime('%m/%d/%Y %I:%M:%S %p')  # AM/PM format added
 
     embed = {
         "title": "🔔Robux Balance Changed!",
@@ -192,7 +180,7 @@ def send_discord_notification_for_robux(robux, last_robux):
         ],
         "color": 0x00ff00 if robux > last_robux else 0xff0000,
         "footer": {
-            "text": f"Robux Balance Has Fetched at {current_time}"
+            "text": f"Robux Balance Has Fetched"
         }
     }
 
@@ -207,41 +195,133 @@ def send_discord_notification_for_robux(robux, last_robux):
 
 def check_transactions():
     """Check the transaction data and send Discord notifications if anything has changed.""" 
-    last_transaction_data = load_last_transaction_data()
-    response = requests.get(TRANSACTION_API_URL, cookies=COOKIES)
+    try:
+        last_transaction_data = load_last_transaction_data()
+        response = requests.get(TRANSACTION_API_URL, cookies=COOKIES, timeout=10)
 
-    if response.status_code == 200:
-        transaction_data = response.json()
-        changes = {key: (last_transaction_data.get(key, 0), value) for key, value in transaction_data.items() if value != last_transaction_data.get(key, 0)}
-        if changes:
-            send_discord_notification_for_transactions(changes)
-            save_last_transaction_data(transaction_data)
+        if response.status_code == 200:
+            transaction_data = response.json()
+            changes = {key: (last_transaction_data.get(key, 0), value) for key, value in transaction_data.items() if value != last_transaction_data.get(key, 0)}
+            if changes:
+                send_discord_notification_for_transactions(changes)
+                save_last_transaction_data(transaction_data)
+        else:
+            logger.error(f"Failed to fetch transaction data. Status code: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error while checking transactions: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error checking transactions: {str(e)}")
 
 def check_robux():
     """Check the Robux balance and send a notification if it has changed.""" 
-    last_robux = load_last_robux()
-    response = requests.get(CURRENCY_API_URL, cookies=COOKIES)
+    try:
+        last_robux = load_last_robux()
+        response = requests.get(CURRENCY_API_URL, cookies=COOKIES, timeout=10)
 
-    if response.status_code == 200:
-        robux = response.json().get("robux", 0)
-        if robux != last_robux:
-            send_discord_notification_for_robux(robux, last_robux)
-            save_last_robux(robux)
+        if response.status_code == 200:
+            robux = response.json().get("robux", 0)
+            if robux != last_robux:
+                send_discord_notification_for_robux(robux, last_robux)
+                save_last_robux(robux)
+        else:
+            logger.error(f"Failed to fetch Robux balance. Status code: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error while checking Robux: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error checking Robux: {str(e)}")
 
-# Flag to control the loop
-monitoring_event = threading.Event()
+def validate_config():
+    """Validate the configuration values."""
+    if not config["DISCORD_WEBHOOK_URL"]:
+        return False, "Discord Webhook URL is required"
+    if not config["ROBLOSECURITY"]:
+        return False, "Roblox Security Cookie is required"
+    if not config["DISCORD_EMOJI_ID"]:
+        return False, "Discord Emoji ID is required"
+    
+    # Test Roblox cookie
+    try:
+        test_response = requests.get("https://users.roblox.com/v1/users/authenticated", 
+                                   cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
+                                   timeout=10)
+        if test_response.status_code != 200:
+            return False, "Invalid Roblox security cookie"
+    except:
+        return False, "Could not connect to Roblox API"
+    
+    return True, "Configuration is valid"
 
 def main_loop():
-    """Main loop that continuously checks transactions and Robux balance.""" 
+    """Start the transaction and Robux balance checks on intervals with a progress bar."""
     while monitoring_event.is_set():
-        with alive_bar(2, title="Checking...") as bar:
+        try:
             check_transactions()
-            bar()
             check_robux()
-            bar()
-        time.sleep(CHECK_EVERY)
+            
+            # Update progress bars
+            with alive_bar(CHECK_EVERY, title='Time until next check', bar='classic', spinner='dots', length=30) as bar:
+                for i in range(CHECK_EVERY):
+                    if not monitoring_event.is_set():
+                        break
+                    progress_var.set((i + 1) / CHECK_EVERY * 100)
+                    time_left = CHECK_EVERY - i - 1
+                    progress_label.config(text=f"Next check in {time_left} seconds")
+                    time.sleep(1)
+                    window.update()
+                    bar()  # Update alive_bar
+        except Exception as e:
+            logger.error(f"Error in monitoring loop: {str(e)}")
+            time.sleep(5)  # Wait before retrying
 
-# Run the GUI in a separate thread
+def start_monitoring():
+    """Start monitoring transactions and Robux."""
+    if monitoring_event.is_set():
+        logger.warning("Monitoring is already running")
+        return
+        
+    # Validate configuration before starting
+    is_valid, message = validate_config()
+    if not is_valid:
+        logger.error(f"Invalid configuration: {message}")
+        messagebox.showerror("Configuration Error", message)
+        return
+    
+    try:
+        progress_label.config(text="Starting monitoring...")
+        monitoring_event.set()
+        
+        # Run the main loop in a separate thread
+        monitoring_thread = threading.Thread(target=main_loop, daemon=True)
+        monitoring_thread.start()
+        logger.info("Monitoring started.")
+        
+        # Enable/disable buttons
+        start_button.config(state='disabled')
+        stop_button.config(state='normal')
+    except Exception as e:
+        monitoring_event.clear()
+        error_msg = f"Failed to start monitoring: {str(e)}"
+        logger.error(error_msg)
+        messagebox.showerror("Error", error_msg)
+        progress_label.config(text="Monitoring inactive")
+        progress_var.set(0)
+
+def stop_monitoring():
+    """Stop monitoring transactions and Robux."""
+    try:
+        monitoring_event.clear()
+        progress_var.set(0)
+        progress_label.config(text="Monitoring inactive")
+        logger.info("Monitoring stopped.")
+        
+        # Enable/disable buttons
+        start_button.config(state='normal')
+        stop_button.config(state='disabled')
+    except Exception as e:
+        error_msg = f"Error stopping monitoring: {str(e)}"
+        logger.error(error_msg)
+        messagebox.showerror("Error", error_msg)
+
 def apply_styles(widget):
     """Apply common styles to widgets.""" 
     widget.config(font=("Arial", 12), bg="#2e3b4e", fg="white", relief="flat", bd=2, highlightthickness=0)
@@ -271,70 +351,185 @@ def on_focus_out(entry, placeholder):
         entry.insert(0, placeholder)
         entry.config(fg="grey")
 
+class GUILogHandler:
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+
+    def write(self, message):
+        self.text_widget.configure(state='normal')
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Color coding for different message types
+        if "ERROR" in message:
+            self.text_widget.tag_config("error", foreground="red")
+            self.text_widget.insert('end', f"{timestamp} | ", "timestamp")
+            self.text_widget.insert('end', f"{message}\n", "error")
+        elif "INFO" in message:
+            self.text_widget.tag_config("info", foreground="#00ff00")
+            self.text_widget.insert('end', f"{timestamp} | ", "timestamp")
+            self.text_widget.insert('end', f"{message}\n", "info")
+        else:
+            self.text_widget.tag_config("default", foreground="white")
+            self.text_widget.insert('end', f"{timestamp} | ", "timestamp")
+            self.text_widget.insert('end', f"{message}\n", "default")
+        
+        self.text_widget.tag_config("timestamp", foreground="#ADD8E6")  # Light blue for timestamps
+        self.text_widget.see('end')
+        self.text_widget.configure(state='disabled')
+
+    def flush(self):
+        pass
+
 if __name__ == "__main__":
+    logger.info("Starting Roblox Transaction & Robux Monitoring application...")
     # Run GUI in a separate thread
     try:
-        """Run the GUI in a separate thread with enhanced styles.""" 
         window = tk.Tk()
+        window.resizable(False, False)
         window.title("Roblox Transaction & Robux Monitoring")
 
         # Set the background color of the window
         window.config(bg="#1d2636")
-        window.geometry("400x400")
+        window.geometry("800x700")  # Increased height for progress bar
+
+        # Create main frame
+        main_frame = tk.Frame(window, bg="#1d2636")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Create left frame for inputs
+        left_frame = tk.Frame(main_frame, bg="#1d2636")
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
 
         # Input fields for configuration
-        discord_webhook_input = tk.Entry(window, width=40)
+        discord_webhook_input = tk.Entry(left_frame, width=40)
         discord_webhook_input.insert(0, config["DISCORD_WEBHOOK_URL"])
         discord_webhook_input.bind("<FocusIn>", lambda event: on_focus_in(discord_webhook_input, "Enter DISCORD WEBHOOK URL Here"))
         discord_webhook_input.bind("<FocusOut>", lambda event: on_focus_out(discord_webhook_input, "Enter DISCORD WEBHOOK URL Here"))
         apply_styles(discord_webhook_input)
         discord_webhook_input.pack(pady=5)
 
-        roblox_cookie_input = tk.Entry(window, width=40)
+        roblox_cookie_input = tk.Entry(left_frame, width=40)
         roblox_cookie_input.insert(0, config["ROBLOSECURITY"])
         roblox_cookie_input.bind("<FocusIn>", lambda event: on_focus_in(roblox_cookie_input, "Enter ROBLOSECURITY Here"))
         roblox_cookie_input.bind("<FocusOut>", lambda event: on_focus_out(roblox_cookie_input, "Enter ROBLOSECURITY Here"))
         apply_styles(roblox_cookie_input)
         roblox_cookie_input.pack(pady=5)
 
-        emoji_id_input = tk.Entry(window, width=40)
+        emoji_id_input = tk.Entry(left_frame, width=40)
         emoji_id_input.insert(0, config["DISCORD_EMOJI_ID"])
         emoji_id_input.bind("<FocusIn>", lambda event: on_focus_in(emoji_id_input, "Enter Discord Emoji ID Here"))
         emoji_id_input.bind("<FocusOut>", lambda event: on_focus_out(emoji_id_input, "Enter Discord Emoji ID Here"))
         apply_styles(emoji_id_input)
         emoji_id_input.pack(pady=5)
 
+        # Buttons
         def save_config():
             """Save the configuration.""" 
-            config["DISCORD_WEBHOOK_URL"] = discord_webhook_input.get()
-            config["ROBLOSECURITY"] = roblox_cookie_input.get()
-            config["DISCORD_EMOJI_ID"] = emoji_id_input.get()
-            save_config_to_file(config)
-            messagebox.showinfo("Success", "Configuration Saved Successfully!")
+            try:
+                config["DISCORD_WEBHOOK_URL"] = discord_webhook_input.get()
+                config["ROBLOSECURITY"] = roblox_cookie_input.get()
+                config["DISCORD_EMOJI_ID"] = emoji_id_input.get()
+                save_config_to_file(config)
+                logger.info("Configuration saved successfully")
+                messagebox.showinfo("Success", "Configuration Saved Successfully!")
+            except Exception as e:
+                error_msg = f"Error saving configuration: {str(e)}"
+                logger.error(error_msg)
+                messagebox.showerror("Error", error_msg)
 
-        save_button = tk.Button(window, text="Save Config", command=save_config)
+        save_button = tk.Button(left_frame, text="Save Config", command=save_config)
         apply_button_styles(save_button)
         save_button.pack(pady=10)
 
-        def start_monitoring():
-            """Start monitoring transactions and Robux.""" 
-            monitoring_event.set()
-            threading.Thread(target=main_loop, daemon=True).start()
-
-        def stop_monitoring():
-            """Stop monitoring transactions and Robux.""" 
-            monitoring_event.clear()
-
-        start_button = tk.Button(window, text="Start", command=start_monitoring)
+        start_button = tk.Button(left_frame, text="Start", command=start_monitoring)
         apply_button_styles(start_button)
         start_button.pack(pady=10)
 
-        stop_button = tk.Button(window, text="Stop", command=stop_monitoring)
+        stop_button = tk.Button(left_frame, text="Stop", command=stop_monitoring)
         apply_button_styles(stop_button)
         stop_button.pack(pady=10)
+        stop_button.config(state='disabled')  # Initially disabled
+
+        # Create progress frame
+        progress_frame = tk.Frame(window, bg="#1d2636")
+        progress_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        # Progress bar style
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Custom.Horizontal.TProgressbar",
+                       troughcolor='#1a1a1a',
+                       background='#4CAF50',
+                       darkcolor='#4CAF50',
+                       lightcolor='#4CAF50',
+                       bordercolor='#1a1a1a')
+
+        # Progress variables
+        progress_var = tk.DoubleVar()
+        progress_label = tk.Label(progress_frame, 
+                                text="Monitoring inactive", 
+                                bg="#1d2636", 
+                                fg="white", 
+                                font=("Arial", 10))
+        progress_label.pack(side=tk.TOP, pady=(0, 5))
+
+        progress_bar = ttk.Progressbar(progress_frame,
+                                     style="Custom.Horizontal.TProgressbar",
+                                     variable=progress_var,
+                                     mode='determinate',
+                                     length=780)
+        progress_bar.pack(fill=tk.X)
+
+        # Create right frame for log output
+        right_frame = tk.Frame(main_frame, bg="#1d2636")
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+
+        # Create log header frame
+        log_header = tk.Frame(right_frame, bg="#2e3b4e")
+        log_header.pack(fill=tk.X, pady=(0, 5))
+
+        # Add "Log Output" label
+        log_label = tk.Label(log_header, text="Log Output", bg="#2e3b4e", fg="white", font=("Arial", 12, "bold"))
+        log_label.pack(side=tk.LEFT, padx=5, pady=5)
+
+        def clear_logs():
+            """Clear the log output text widget."""
+            log_output.configure(state='normal')
+            log_output.delete(1.0, tk.END)
+            log_output.configure(state='disabled')
+            logger.info("Log output cleared")
+
+        # Add clear button
+        clear_button = tk.Button(log_header, text="Clear Logs", command=clear_logs)
+        apply_button_styles(clear_button)
+        clear_button.pack(side=tk.RIGHT, padx=5, pady=5)
+
+        # Add log output text widget with improved styling
+        log_output = scrolledtext.ScrolledText(
+            right_frame, 
+            height=30, 
+            bg="#1a1a1a",
+            fg="white", 
+            font=("Consolas", 10),
+            padx=10,
+            pady=10,
+            wrap=tk.WORD
+        )
+        log_output.pack(fill=tk.BOTH, expand=True)
+        log_output.configure(state='disabled')
+
+        # Create and configure GUI log handler
+        gui_handler = GUILogHandler(log_output)
+        logger.add(gui_handler.write, format="{message}")
+
+        # Log initial message
+        logger.info("Application started - Waiting for configuration...")
+
+        # Flag to control the loop
+        monitoring_event = threading.Event()
 
         # Start the GUI
-        window.protocol("WM_DELETE_WINDOW", window.quit)  # Close window properly
+        window.protocol("WM_DELETE_WINDOW", window.quit)
         window.mainloop()
     except Exception as e:
         logger.error(f"Error starting the GUI thread: {e}")
