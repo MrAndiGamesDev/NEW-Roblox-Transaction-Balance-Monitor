@@ -5,12 +5,12 @@ A GUI application to monitor Roblox transactions and Robux balance changes in re
 
 ## Features
 
-[ ] - Real time monitoring of Roblox transactions
-[ ] - Robux balance tracking
-[ ] - Discord webhook integration for notifications
-[ ] - User friendly GUI interface
-[ ] - Customizable monitoring intervals
-[ ] - Detailed logging system
+[ ] Real time monitoring of Roblox transactions
+[ ] Robux balance tracking
+[ ] Discord webhook integration for notifications
+[ ] User friendly GUI interface
+[ ] Customizable monitoring intervals
+[ ] Detailed logging system
 
 ## Configuration
 
