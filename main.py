@@ -916,9 +916,6 @@ async def Initialize_gui():
         window.config(bg="#1d2636")
         window.geometry("800x700")
         
-        # Rest of the existing GUI setup code remains the same
-        # ... (keep the existing GUI initialization code)
-        
         # Create main frame
         main_frame = tk.Frame(window, bg="#1d2636")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -1128,6 +1125,16 @@ async def Initialize_gui():
                 def create_log_viewer_window(logs):
                     log_viewer = tk.Toplevel(window)
                     log_viewer.title("Log Viewer")
+                    response = rate_limited_request('GET', icon_url)
+                    response.raise_for_status()  # Raise an error for failed requests
+
+                    # Load the icon image
+                    img_data = BytesIO(response.content)
+                    icon = Image.open(img_data)
+                    icon = ImageTk.PhotoImage(icon)
+
+                    # Set the icon and window title
+                    log_viewer.iconphoto(False, icon)
                     log_viewer.geometry("600x400")
                     log_viewer.config(bg="#1d2636")
 
