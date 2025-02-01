@@ -207,7 +207,11 @@ def check_transactions():
         last_transaction_data = load_last_transaction_data()
         response = requests.get(TRANSACTION_API_URL, cookies=COOKIES, timeout=10)
 
-        if response.status_code == 200:
+        if response.status_code == 401:
+            logger.error("Roblox security cookie has expired. Please update your .ROBLOSECURITY cookie.")
+            handle_auth_error()
+            return
+        elif response.status_code == 200:
             transaction_data = response.json()
             changes = {key: (last_transaction_data.get(key, 0), value) for key, value in transaction_data.items() if value != last_transaction_data.get(key, 0)}
             if changes:
@@ -226,7 +230,11 @@ def check_robux():
         last_robux = load_last_robux()
         response = requests.get(CURRENCY_API_URL, cookies=COOKIES, timeout=10)
 
-        if response.status_code == 200:
+        if response.status_code == 401:
+            logger.error("Roblox security cookie has expired. Please update your .ROBLOSECURITY cookie.")
+            handle_auth_error()
+            return
+        elif response.status_code == 200:
             robux = response.json().get("robux", 0)
             if robux != last_robux:
                 send_discord_notification_for_robux(robux, last_robux)
@@ -252,12 +260,52 @@ def validate_config():
         test_response = requests.get("https://users.roblox.com/v1/users/authenticated", 
                                    cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
                                    timeout=10)
-        if test_response.status_code != 200:
-            return False, "Invalid Roblox security cookie"
-    except:
-        return False, "Could not connect to Roblox API"
+        if test_response.status_code == 401:
+            return False, "Invalid or expired Roblox security cookie. Please update your .ROBLOSECURITY cookie."
+        elif test_response.status_code != 200:
+            return False, f"Invalid Roblox security cookie. Status code: {test_response.status_code}"
+    except requests.exceptions.RequestException as e:
+        return False, f"Could not connect to Roblox API: {str(e)}"
+    
+    # Test Discord webhook
+    try:
+        test_embed = {
+            "title": "🔔 Testing Webhook Connection",
+            "description": "This is a test message to verify the webhook configuration.",
+            "color": 0x00ff00
+        }
+        test_response = requests.post(config["DISCORD_WEBHOOK_URL"], json={"embeds": [test_embed]}, timeout=10)
+        if test_response.status_code == 404:
+            return False, "Invalid Discord webhook URL. The webhook may have been deleted."
+        elif test_response.status_code != 204:  # Discord returns 204 for successful webhook posts
+            return False, f"Invalid Discord webhook URL. Status code: {test_response.status_code}"
+    except requests.exceptions.RequestException as e:
+        return False, f"Could not connect to Discord webhook: {str(e)}"
     
     return True, "Configuration is valid"
+
+def handle_auth_error():
+    """Handle authentication error by stopping monitoring and updating UI."""
+    monitoring_event.clear()  # Stop monitoring
+    progress_label.config(text="Authentication Error - Update Cookie")
+    progress_var.set(0)
+    start_button.config(state='disabled')
+    stop_button.config(state='disabled')
+    
+    # Highlight the cookie input field
+    roblox_cookie_input.config(bg="#4a1919")  # Dark red background
+    roblox_cookie_label.config(fg="#ff6b6b")  # Light red text
+    
+    # Enable save button
+    save_button.config(state='normal')
+    
+    messagebox.showerror("Authentication Error", 
+                        "Your Roblox security cookie has expired.\n\n"
+                        "1. Go to Roblox.com and log in\n"
+                        "2. Press F12 to open Developer Tools\n"
+                        "3. Go to Application > Cookies > .ROBLOSECURITY\n"
+                        "4. Copy the cookie value and paste it here\n"
+                        "5. Click Save Config and try again")
 
 def main_loop():
     """Start the transaction and Robux balance checks on intervals."""
@@ -398,6 +446,31 @@ class GUILogHandler:
     def flush(self):
         pass
 
+def save_config():
+    """Save the configuration.""" 
+    try:
+        config["DISCORD_WEBHOOK_URL"] = discord_webhook_input.get()
+        config["ROBLOSECURITY"] = roblox_cookie_input.get()
+        config["DISCORD_EMOJI_ID"] = emoji_id_input.get()
+        save_config_to_file(config)
+        
+        # Reset UI styles
+        roblox_cookie_input.config(bg="#2e3b4e")  # Reset to normal background
+        roblox_cookie_label.config(fg="white")  # Reset to normal text color
+        
+        # Re-enable start button if config is valid
+        is_valid, _ = validate_config()
+        if is_valid:
+            start_button.config(state='normal')
+            progress_label.config(text="Monitoring inactive")
+        
+        logger.info("Configuration saved successfully")
+        messagebox.showinfo("Success", "Configuration Saved Successfully!")
+    except Exception as e:
+        error_msg = f"Error saving configuration: {str(e)}"
+        logger.error(error_msg)
+        messagebox.showerror("Error", error_msg)
+
 if __name__ == "__main__":
     logger.info("Starting Roblox Transaction & Robux Monitoring application...")
     # Run GUI in a separate thread
@@ -461,20 +534,6 @@ if __name__ == "__main__":
         timer_input.pack(pady=5)
 
         # Buttons
-        def save_config():
-            """Save the configuration.""" 
-            try:
-                config["DISCORD_WEBHOOK_URL"] = discord_webhook_input.get()
-                config["ROBLOSECURITY"] = roblox_cookie_input.get()
-                config["DISCORD_EMOJI_ID"] = emoji_id_input.get()
-                save_config_to_file(config)
-                logger.info("Configuration saved successfully")
-                messagebox.showinfo("Success", "Configuration Saved Successfully!")
-            except Exception as e:
-                error_msg = f"Error saving configuration: {str(e)}"
-                logger.error(error_msg)
-                messagebox.showerror("Error", error_msg)
-
         save_button = tk.Button(left_frame, text="Save Config", command=save_config)
         apply_button_styles(save_button)
         save_button.pack(pady=10)
