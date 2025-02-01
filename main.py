@@ -43,7 +43,7 @@ last_api_call = 0
 
 # New global variables for update
 UPDATE_CHECK_URL = "https://api.github.com/repos/MrAndiGamesDev/Roblox-Transaction-Application/releases/latest"
-CURRENT_VERSION = "0.2.1"  # Update this with each release
+CURRENT_VERSION = "0.2.3"  # Update this with each release
 DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction", "updates")
 
 def rate_limited_request(*args, **kwargs):
@@ -773,8 +773,21 @@ def check_for_updates(silent=False):
         # Fetch latest release information
         response = rate_limited_request('GET', UPDATE_CHECK_URL)
         
+        if response.status_code == 404:
+            logger.warning("No releases found in the repository.")
+            if not silent:
+                messagebox.showinfo("Update Check", "No releases available")
+            return
+        
         if response.status_code == 200:
             latest_release = response.json()
+            
+            # If no releases exist
+            if not latest_release:
+                logger.warning("No releases found in the repository.")
+                if not silent:
+                    messagebox.showinfo("Update Check", "No releases available")
+                return
             
             # Extract version, handling potential 'v' prefix
             latest_version_tag = latest_release.get('tag_name', '').lstrip('v')
@@ -924,8 +937,8 @@ def periodic_update_check():
     
     # Schedule next update check (every 24 hours)
     if window:
-        window.after(24 * 60 * 60 * 1000, periodic_update_check)
-
+        window.after(24 * 60 * 60 * 1000, periodic_update_check)  # First check after 5 seconds
+        
 async def show_splash_screen():
     """Create a splash screen with simulated loading."""
     # Create temporary root window
