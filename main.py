@@ -47,6 +47,22 @@ def validate_emoji_id(emoji_id):
     """Validate Discord emoji ID format."""
     return emoji_id.isdigit()
 
+def validate_roblosecurity(cookie):
+    """Clean and validate the .ROBLOSECURITY cookie format."""
+    if not cookie:
+        return False, "Cookie is empty"
+    
+    # Remove any whitespace
+    cookie = cookie.strip()
+    
+    # Check if it's a full cookie URL format and extract just the value
+    if cookie.startswith('_|WARNING:-DO-NOT-SHARE-THIS'):
+        return True, cookie
+    
+    # If it's not in the correct format, log an error
+    logger.error("Cookie format is incorrect. It should start with '_|WARNING:-DO-NOT-SHARE-THIS'")
+    return False, "Invalid cookie format. Please make sure you copied the entire cookie value."
+
 def safe_file_write(file_path, content):
     """Safely write content to a file."""
     try:
@@ -64,7 +80,8 @@ def save_config_to_file(config):
     sanitized_config = {
         "DISCORD_WEBHOOK_URL": sanitize_input(config["DISCORD_WEBHOOK_URL"]),
         "ROBLOSECURITY": sanitize_input(config["ROBLOSECURITY"]),
-        "DISCORD_EMOJI_ID": sanitize_input(config["DISCORD_EMOJI_ID"])
+        "DISCORD_EMOJI_ID": sanitize_input(config["DISCORD_EMOJI_ID"]),
+        "CHECK_INTERVAL": sanitize_input(config["CHECK_INTERVAL"])
     }
     
     if not os.path.exists(APP_DIR):
@@ -77,7 +94,8 @@ def save_config_to_file(config):
 config = {
     "DISCORD_WEBHOOK_URL": "",
     "ROBLOSECURITY": "",
-    "DISCORD_EMOJI_ID": ""
+    "DISCORD_EMOJI_ID": "",
+    "CHECK_INTERVAL": "60"  # Default check interval of 60 seconds
 }
 
 icon_url = "https://raw.githubusercontent.com/MrAndiGamesDev/Roblox-Transaction-Application/refs/heads/main/Robux.png"  # Replace with actual URL
@@ -94,7 +112,6 @@ DISCORD_WEBHOOK_URL = config["DISCORD_WEBHOOK_URL"]
 
 # API endpoint and authentication
 ALIVE_TIME = 3600
-DEFAULT_CHECK_INTERVAL = 60  # Default check interval in seconds
 
 MONITORING_ROBUX = False
 
@@ -307,18 +324,41 @@ def validate_config():
         return False, "Roblox Security Cookie is required"
     if not config["DISCORD_EMOJI_ID"]:
         return False, "Discord Emoji ID is required"
+    if not config["CHECK_INTERVAL"]:
+        return False, "Check Interval is required"
     
     # Test Roblox cookie
     try:
-        test_response = rate_limited_request('GET', "https://users.roblox.com/v1/users/authenticated", 
-                                   cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
-                                   timeout=10)
+        logger.info("Testing Roblox cookie authentication...")
+        test_response = rate_limited_request(
+            'GET', 
+            "https://users.roblox.com/v1/users/authenticated", 
+            cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
+            timeout=10
+        )
+        
+        logger.info(f"Roblox API response status code: {test_response.status_code}")
         if test_response.status_code == 401:
+            response_text = test_response.text
+            logger.error(f"Authentication failed. Response: {response_text}")
             return False, "Invalid or expired Roblox security cookie. Please update your .ROBLOSECURITY cookie."
         elif test_response.status_code != 200:
+            response_text = test_response.text
+            logger.error(f"Unexpected status code. Response: {response_text}")
             return False, f"Invalid Roblox security cookie. Status code: {test_response.status_code}"
+            
+        # Try to parse the response to ensure it's valid
+        response_data = test_response.json()
+        logger.info(f"Successfully authenticated as user ID: {response_data.get('id')}")
     except requests.exceptions.RequestException as e:
+        logger.error(f"Network error during authentication: {str(e)}")
         return False, f"Could not connect to Roblox API: {str(e)}"
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON response from Roblox API: {str(e)}")
+        return False, "Invalid response from Roblox API"
+    except Exception as e:
+        logger.error(f"Unexpected error during authentication: {str(e)}")
+        return False, f"Error during authentication: {str(e)}"
     
     return True, "Configuration is valid"
 
@@ -360,9 +400,9 @@ def main_loop():
                     timer_input.delete(0, tk.END)
                     timer_input.insert(0, "10")
             except ValueError:
-                check_interval = DEFAULT_CHECK_INTERVAL
+                check_interval = 60  # Default check interval
                 timer_input.delete(0, tk.END)
-                timer_input.insert(0, str(DEFAULT_CHECK_INTERVAL))
+                timer_input.insert(0, str(60))
             
             # Update progress bar
             for i in range(check_interval):
@@ -447,13 +487,15 @@ def on_focus_in(entry, placeholder):
     """Remove placeholder text when the entry field is focused.""" 
     if entry.get() == placeholder:
         entry.delete(0, tk.END)
-        entry.config(fg="white")
+    entry.config(fg="white")  # Always set to white when focused
 
 def on_focus_out(entry, placeholder):
     """Set placeholder text when the entry field is not focused and empty.""" 
     if not entry.get():
         entry.insert(0, placeholder)
         entry.config(fg="grey")
+    else:
+        entry.config(fg="white")  # Keep text white if there's content
 
 class GUILogHandler:
     def __init__(self, text_widget):
@@ -527,6 +569,7 @@ def save_config():
         webhook_url = discord_webhook_input.get()
         roblosecurity = roblox_cookie_input.get()
         emoji_id = emoji_id_input.get()
+        interval = timer_input.get()
 
         # Check for empty fields and show tutorials
         if not webhook_url or webhook_url.isspace():
@@ -538,6 +581,9 @@ def save_config():
         if not emoji_id or emoji_id.isspace():
             show_tutorial("emoji")
             return
+        if not interval or interval.isspace():
+            show_tutorial("interval")
+            return
 
         # Validate inputs
         if not validate_webhook_url(webhook_url):
@@ -548,10 +594,19 @@ def save_config():
             messagebox.showerror("Invalid Input", "Invalid Discord emoji ID format")
             show_tutorial("emoji")
             return
+            
+        # Validate Roblox cookie format
+        is_valid_cookie, cookie_message = validate_roblosecurity(roblosecurity)
+        if not is_valid_cookie:
+            messagebox.showerror("Invalid Input", cookie_message)
+            show_tutorial("cookie")
+            return
+        roblosecurity = cookie_message  # Use the cleaned cookie value
         
         config["DISCORD_WEBHOOK_URL"] = webhook_url
         config["ROBLOSECURITY"] = roblosecurity
         config["DISCORD_EMOJI_ID"] = emoji_id
+        config["CHECK_INTERVAL"] = interval
         save_config_to_file(config)
         
         # Reset UI styles
@@ -629,7 +684,7 @@ if __name__ == "__main__":
         timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
         timer_label.pack(pady=(5, 0))
         timer_input = tk.Entry(left_frame, width=40)
-        timer_input.insert(0, str(DEFAULT_CHECK_INTERVAL))
+        timer_input.insert(0, str(config["CHECK_INTERVAL"]))
         apply_styles(timer_input)
         timer_input.pack(pady=5)
 
