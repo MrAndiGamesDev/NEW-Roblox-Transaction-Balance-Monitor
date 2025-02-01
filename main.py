@@ -4,6 +4,8 @@ import json
 import os
 import threading
 import tkinter as tk
+from io import BytesIO
+from PIL import Image, ImageTk
 from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
 from alive_progress import alive_bar
@@ -23,6 +25,8 @@ config = {
     "ROBLOSECURITY": "",
     "DISCORD_EMOJI_ID": ""
 }
+
+icon_url = "https://raw.githubusercontent.com/MrAndiGamesDev/Roblox-Transaction-Application/refs/heads/main/Robux.png"  # Replace with actual URL
 
 if not os.path.exists(CONFIG_FILE):
     save_config_to_file(config)
@@ -385,6 +389,14 @@ if __name__ == "__main__":
     # Run GUI in a separate thread
     try:
         window = tk.Tk()
+        response = requests.get(icon_url)
+        response.raise_for_status()  # Raise an error for failed requests
+
+        img_data = BytesIO(response.content)
+        icon = Image.open(img_data)
+        icon = ImageTk.PhotoImage(icon)
+
+        window.iconphoto(False, icon)
         window.resizable(False, False)
         window.title("Roblox Transaction & Robux Monitoring")
 
