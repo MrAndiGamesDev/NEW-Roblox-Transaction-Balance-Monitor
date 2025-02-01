@@ -1056,40 +1056,10 @@ async def Initialize_gui():
             log_output.configure(state='disabled')
             logger.info("Log output cleared")
 
-        def update_log_output():
-            """Manually trigger a refresh of the log output."""
-            try:
-                # Retrieve the current log contents from the text widget
-                log_output.configure(state='normal')
-                current_logs = log_output.get(1.0, tk.END)
-                
-                # If logs are empty or minimal, add a refresh message
-                if not current_logs.strip():
-                    log_output.insert(tk.END, "No logs available.\n")
-                
-                # Scroll to the end
-                log_output.see(tk.END)
-                log_output.configure(state='disabled')
-                
-                logger.info("Log output manually updated")
-            except Exception as e:
-                logger.error(f"Error updating log output: {e}")
-                
-                # Show error in log output
-                log_output.configure(state='normal')
-                log_output.insert(tk.END, f"\nError updating logs: {e}\n")
-                log_output.see(tk.END)
-                log_output.configure(state='disabled')
-
         # Add clear button
         clear_button = tk.Button(log_header, text="Clear Logs", command=clear_logs)
         apply_button_styles(clear_button)
         clear_button.pack(side=tk.RIGHT, padx=5, pady=5)
-
-        # Add refresh button
-        refresh_button = tk.Button(log_header, text="Refresh Logs", command=update_log_output)
-        apply_button_styles(refresh_button)
-        refresh_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
         # Add log output text widget with improved styling
         global log_output
@@ -1105,67 +1075,6 @@ async def Initialize_gui():
         )
         log_output.pack(fill=tk.BOTH, expand=True)
         log_output.configure(state='disabled')
-
-        # Add bottom right update logs button
-        bottom_log_frame = tk.Frame(right_frame, bg="#1d2636")
-        bottom_log_frame.pack(fill=tk.X, pady=(5,0))
-
-        def update_logs_button_action():
-            """Action for updating logs from the current log output."""
-            try:
-                # Retrieve the current log contents
-                log_output.configure(state='normal')
-                current_logs = log_output.get(1.0, tk.END)
-                log_output.configure(state='disabled')
-                
-                # If logs are empty or minimal, add a refresh message
-                if not current_logs.strip():
-                    current_logs = "No logs available.\n"
-                
-                # Create a new log viewer window
-                def create_log_viewer_window(logs):
-                    log_viewer = tk.Toplevel(window)
-                    log_viewer.title("Log Viewer")
-                    response = rate_limited_request('GET', icon_url)
-                    response.raise_for_status()  # Raise an error for failed requests
-
-                    # Load the icon image
-                    img_data = BytesIO(response.content)
-                    icon = Image.open(img_data)
-                    icon = ImageTk.PhotoImage(icon)
-
-                    # Set the icon and window title
-                    log_viewer.iconphoto(False, icon)
-                    log_viewer.geometry("600x400")
-                    log_viewer.config(bg="#1d2636")
-
-                    log_text = scrolledtext.ScrolledText(
-                        log_viewer, 
-                        wrap=tk.WORD, 
-                        font=("Consolas", 10),
-                        bg="#1a1a1a", 
-                        fg="white"
-                    )
-                    log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-                    log_text.insert(tk.END, logs)
-                    log_text.configure(state='disabled')
-
-                create_log_viewer_window(current_logs)
-                
-                logger.info("Log output manually updated and displayed in a new window")
-            except Exception as e:
-                logger.error(f"Error updating logs: {e}")
-                
-                # Show error in a message box
-                messagebox.showerror("Error", f"Could not update logs: {e}")
-
-        bottom_update_logs_button = tk.Button(
-            bottom_log_frame, 
-            text="Update Logs", 
-            command=update_logs_button_action
-        )
-        apply_button_styles(bottom_update_logs_button)
-        bottom_update_logs_button.pack(side=tk.RIGHT, padx=5)
 
         # Create and configure GUI log handler
         gui_handler = GUILogHandler(log_output)
