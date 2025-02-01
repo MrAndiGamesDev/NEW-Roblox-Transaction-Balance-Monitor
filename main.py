@@ -11,10 +11,16 @@ from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
 
 # Load configuration from the JSON file
-CONFIG_FILE = "config.json"
+APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
+CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
 def save_config_to_file(config):
     """Save the configuration to the JSON file.""" 
+    # Create app directory if it doesn't exist
+    if not os.path.exists(APP_DIR):
+        os.makedirs(APP_DIR)
+        logger.info(f"Created application directory at {APP_DIR}")
+    
     with open(CONFIG_FILE, "w") as file:
         json.dump(config, file)
 
@@ -69,12 +75,11 @@ ROBLOX_ECONOMY_API = "https://economy.roblox.com"
 TRANSACTION_API_URL = f"{ROBLOX_ECONOMY_API}/v2/users/{USERID}/transaction-totals?timeFrame={DATE_TYPE}&transactionType=summary"
 CURRENCY_API_URL = f"{ROBLOX_ECONOMY_API}/v1/users/{USERID}/currency"
 
-FOLDERNAME = "Roblox Transaction Info"
+FOLDERNAME = os.path.join(APP_DIR, "transaction_info")
 
 if not os.path.exists(FOLDERNAME):
     os.makedirs(FOLDERNAME)
-    logger.info("Made the folder")
-
+    logger.info(f"Created transaction info directory at {FOLDERNAME}")
 # File to store the last known data
 TRANSACTION_DATA_FILE = os.path.join(FOLDERNAME, "last_transaction_data.json")
 ROBUX_FILE = os.path.join(FOLDERNAME, "last_robux.json")
