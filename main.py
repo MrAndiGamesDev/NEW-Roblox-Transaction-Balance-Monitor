@@ -12,8 +12,6 @@ from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
 import sys
 import subprocess
-import zipfile
-import shutil
 import urllib.request
 from packaging import version
 
@@ -45,7 +43,7 @@ last_api_call = 0
 
 # New global variables for update
 UPDATE_CHECK_URL = "https://api.github.com/repos/MrAndiGamesDev/Roblox-Transaction-Application/releases/latest"
-CURRENT_VERSION = "1.1.0"  # Update this with each release
+CURRENT_VERSION = "0.1.7"  # Update this with each release
 DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction", "updates")
 
 def rate_limited_request(*args, **kwargs):
