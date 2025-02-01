@@ -8,7 +8,6 @@ from io import BytesIO
 from PIL import Image, ImageTk
 from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
-from alive_progress import alive_bar
 from datetime import datetime
 
 # Load configuration from the JSON file
@@ -40,7 +39,7 @@ DISCORD_WEBHOOK_URL = config["DISCORD_WEBHOOK_URL"]
 
 # API endpoint and authentication
 ALIVE_TIME = 3600
-CHECK_EVERY = 60
+DEFAULT_CHECK_INTERVAL = 60  # Default check interval in seconds
 
 MONITORING_ROBUX = False
 
@@ -256,23 +255,33 @@ def validate_config():
     return True, "Configuration is valid"
 
 def main_loop():
-    """Start the transaction and Robux balance checks on intervals with a progress bar."""
+    """Start the transaction and Robux balance checks on intervals."""
     while monitoring_event.is_set():
         try:
             check_transactions()
             check_robux()
             
-            # Update progress bars
-            with alive_bar(CHECK_EVERY, title='Time until next check', bar='classic', spinner='dots', length=30) as bar:
-                for i in range(CHECK_EVERY):
-                    if not monitoring_event.is_set():
-                        break
-                    progress_var.set((i + 1) / CHECK_EVERY * 100)
-                    time_left = CHECK_EVERY - i - 1
-                    progress_label.config(text=f"Next check in {time_left} seconds")
-                    time.sleep(1)
-                    window.update()
-                    bar()  # Update alive_bar
+            # Get the current check interval
+            try:
+                check_interval = int(timer_input.get())
+                if check_interval < 10:  # Minimum 10 seconds
+                    check_interval = 10
+                    timer_input.delete(0, tk.END)
+                    timer_input.insert(0, "10")
+            except ValueError:
+                check_interval = DEFAULT_CHECK_INTERVAL
+                timer_input.delete(0, tk.END)
+                timer_input.insert(0, str(DEFAULT_CHECK_INTERVAL))
+            
+            # Update progress bar
+            for i in range(check_interval):
+                if not monitoring_event.is_set():
+                    break
+                progress_var.set((i + 1) / check_interval * 100)
+                time_left = check_interval - i - 1
+                progress_label.config(text=f"Next check in {time_left} seconds")
+                time.sleep(1)
+                window.update()
         except Exception as e:
             logger.error(f"Error in monitoring loop: {str(e)}")
             time.sleep(5)  # Wait before retrying
@@ -392,10 +401,12 @@ if __name__ == "__main__":
         response = requests.get(icon_url)
         response.raise_for_status()  # Raise an error for failed requests
 
+        # Load the icon image
         img_data = BytesIO(response.content)
         icon = Image.open(img_data)
         icon = ImageTk.PhotoImage(icon)
 
+        # Set the icon and window title
         window.iconphoto(False, icon)
         window.resizable(False, False)
         window.title("Roblox Transaction & Robux Monitoring")
@@ -413,26 +424,36 @@ if __name__ == "__main__":
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
 
         # Input fields for configuration
-        discord_webhook_input = tk.Entry(left_frame, width=40)
+        discord_webhook_label = tk.Label(left_frame, text="DISCORD WEBHOOK URL", bg="#1d2636", fg="white", font=("Arial", 10))
+        discord_webhook_label.pack(pady=(5, 0))
+        discord_webhook_input = tk.Entry(left_frame, width=40, show="*")
         discord_webhook_input.insert(0, config["DISCORD_WEBHOOK_URL"])
-        discord_webhook_input.bind("<FocusIn>", lambda event: on_focus_in(discord_webhook_input, "Enter DISCORD WEBHOOK URL Here"))
-        discord_webhook_input.bind("<FocusOut>", lambda event: on_focus_out(discord_webhook_input, "Enter DISCORD WEBHOOK URL Here"))
         apply_styles(discord_webhook_input)
         discord_webhook_input.pack(pady=5)
 
-        roblox_cookie_input = tk.Entry(left_frame, width=40)
+        # Input fields for configuration
+        roblox_cookie_label = tk.Label(left_frame, text=".ROBLOSECURITY", bg="#1d2636", fg="white", font=("Arial", 10))
+        roblox_cookie_label.pack(pady=(5, 0))
+        roblox_cookie_input = tk.Entry(left_frame, width=40, show="*")
         roblox_cookie_input.insert(0, config["ROBLOSECURITY"])
-        roblox_cookie_input.bind("<FocusIn>", lambda event: on_focus_in(roblox_cookie_input, "Enter ROBLOSECURITY Here"))
-        roblox_cookie_input.bind("<FocusOut>", lambda event: on_focus_out(roblox_cookie_input, "Enter ROBLOSECURITY Here"))
         apply_styles(roblox_cookie_input)
         roblox_cookie_input.pack(pady=5)
 
+        # Input fields for configuration
+        emoji_id_label = tk.Label(left_frame, text="Emoji ID", bg="#1d2636", fg="white", font=("Arial", 10))
+        emoji_id_label.pack(pady=(5, 0))
         emoji_id_input = tk.Entry(left_frame, width=40)
         emoji_id_input.insert(0, config["DISCORD_EMOJI_ID"])
-        emoji_id_input.bind("<FocusIn>", lambda event: on_focus_in(emoji_id_input, "Enter Discord Emoji ID Here"))
-        emoji_id_input.bind("<FocusOut>", lambda event: on_focus_out(emoji_id_input, "Enter Discord Emoji ID Here"))
         apply_styles(emoji_id_input)
         emoji_id_input.pack(pady=5)
+
+        # Add timer input field
+        timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
+        timer_label.pack(pady=(5, 0))
+        timer_input = tk.Entry(left_frame, width=40)
+        timer_input.insert(0, str(DEFAULT_CHECK_INTERVAL))
+        apply_styles(timer_input)
+        timer_input.pack(pady=5)
 
         # Buttons
         def save_config():
