@@ -10,6 +10,12 @@ from PIL import Image, ImageTk
 from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
+import sys
+import subprocess
+import zipfile
+import shutil
+import urllib.request
+from packaging import version
 
 # Global variables for GUI elements
 monitoring_event = None
@@ -36,6 +42,11 @@ CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
 last_api_call = 0
+
+# New global variables for update
+UPDATE_CHECK_URL = "https://api.github.com/repos/MrAndiGamesDev/Roblox-Transaction-Application/releases/latest"
+CURRENT_VERSION = "1.1.0"  # Update this with each release
+DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction", "updates")
 
 def rate_limited_request(*args, **kwargs):
     """Make a rate-limited request to prevent too many API calls."""
@@ -756,6 +767,115 @@ def save_config():
         logger.error(error_msg)
         messagebox.showerror("Unexpected Error", error_msg)
 
+def check_for_updates(silent=False):
+    """Check for application updates from GitHub."""
+    try:
+        logger.info("Checking for application updates...")
+        
+        # Fetch latest release information
+        response = rate_limited_request('GET', UPDATE_CHECK_URL)
+        
+        if response.status_code == 200:
+            latest_release = response.json()
+            latest_version = latest_release.get('tag_name', '').lstrip('v')
+            
+            # Compare versions
+            if version.parse(latest_version) > version.parse(CURRENT_VERSION):
+                logger.info(f"New version available: {latest_version}")
+                
+                # Find Windows executable in assets
+                download_url = None
+                for asset in latest_release.get('assets', []):
+                    if asset['name'].endswith('.exe'):
+                        download_url = asset['browser_download_url']
+                        break
+                
+                if download_url:
+                    # Prompt user for update
+                    update_response = messagebox.askyesno(
+                        "Update Available", 
+                        f"A new version ({latest_version}) is available. Would you like to download and install it?"
+                    )
+                    
+                    if update_response:
+                        download_and_install_update(download_url, latest_version)
+                else:
+                    if not silent:
+                        messagebox.showinfo("Update Check", "No executable found for update.")
+            else:
+                if not silent:
+                    messagebox.showinfo("Update Check", "You are running the latest version.")
+        else:
+            if not silent:
+                messagebox.showerror("Update Error", "Failed to check for updates.")
+    
+    except Exception as e:
+        logger.error(f"Error checking for updates: {e}")
+        if not silent:
+            messagebox.showerror("Update Error", f"An error occurred while checking for updates: {e}")
+
+def download_and_install_update(download_url, version):
+    """Download and install application update."""
+    try:
+        # Ensure download directory exists
+        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+        
+        # Prepare download path
+        download_path = os.path.join(DOWNLOAD_DIR, f"RobloxTransactionMonitor_{version}.exe")
+        
+        # Show download progress
+        def download_progress(count, block_size, total_size):
+            percent = min(int(count * block_size * 100 / total_size), 100)
+            progress_label.config(text=f"Downloading update: {percent}%")
+            window.update_idletasks()
+        
+        # Download the file
+        logger.info(f"Downloading update from {download_url}")
+        urllib.request.urlretrieve(download_url, download_path, download_progress)
+        
+        # Prepare update script
+        update_script_path = os.path.join(DOWNLOAD_DIR, "update.bat")
+        with open(update_script_path, 'w') as f:
+            f.write(f'''
+            @echo off
+            timeout /t 2 /nobreak > NUL
+            start "" "{download_path}"
+            del "%~f0"
+            ''')
+        
+        # Close the application and launch update
+        logger.info("Preparing to launch update")
+        messagebox.showinfo("Update Ready", "The update will start after closing this application.")
+        
+        # Create a batch file to restart the application
+        restart_script_path = os.path.join(DOWNLOAD_DIR, "restart.bat")
+        with open(restart_script_path, 'w') as f:
+            f.write(f'''
+            @echo off
+            start "" "{download_path}"
+            ''')
+        
+        # Launch the update script
+        subprocess.Popen([update_script_path], shell=True)
+        
+        # Close the current application
+        window.quit()
+        sys.exit(0)
+    
+    except Exception as e:
+        logger.error(f"Update download failed: {e}")
+        messagebox.showerror("Update Error", f"Failed to download update: {e}")
+
+def periodic_update_check():
+    """Periodically check for updates in the background."""
+    try:
+        check_for_updates(silent=True)
+    except Exception as e:
+        logger.error(f"Background update check failed: {e}")
+    
+    # Schedule next update check (every 24 hours)
+    window.after(24 * 60 * 60 * 1000, periodic_update_check)
+
 async def show_splash_screen():
     """Create a splash screen with simulated loading."""
     # Create temporary root window
@@ -874,6 +994,8 @@ async def show_splash_screen():
                         cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
                         timeout=10
                     )
+                    
+                    logger.info(f"Roblox API response status code: {test_response.status_code}")
                     if test_response.status_code != 200:
                         logger.warning("Roblox API connectivity test failed")
                 except Exception as e:
@@ -1020,6 +1142,7 @@ async def Initialize_gui():
         global progress_var
         progress_var = tk.DoubleVar()
         global progress_label
+        
         progress_label = tk.Label(
             progress_frame, 
             text="Monitoring inactive", 
@@ -1085,6 +1208,17 @@ async def Initialize_gui():
         start_button.config(state='normal')
         stop_button.config(state='disabled')
 
+        # Add update check menu
+        menubar = tk.Menu(window)
+        window.config(menu=menubar)
+        
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Check for Updates", command=lambda: check_for_updates(silent=False))
+        
+        # Start periodic update checks
+        window.after(5000, periodic_update_check)  # First check after 5 seconds
+        
         # Start the main event loop
         window.mainloop()
 
