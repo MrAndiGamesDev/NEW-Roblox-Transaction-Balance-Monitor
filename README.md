@@ -11,12 +11,6 @@ A GUI application to monitor Roblox transactions and Robux balance changes in re
 - Customizable monitoring intervals
 - Detailed logging system
 
-## Installation
-
-```bash
-pip install roblox-transaction-monitor
-```
-
 ## Configuration
 
 The application requires the following configuration:
@@ -28,24 +22,6 @@ The application requires the following configuration:
 ## Usage
 
 Run the application:
-
-```bash
-roblox-monitor
-```
-
-Or run it as a Python module:
-
-```bash
-python -m roblox_monitor
-```
-
-## Development
-
-To install development dependencies:
-
-```bash
-pip install roblox-transaction-monitor[dev]
-```
 
 ## License
 
