@@ -43,7 +43,7 @@ last_api_call = 0
 
 # New global variables for update
 UPDATE_CHECK_URL = "https://api.github.com/repos/MrAndiGamesDev/Roblox-Transaction-Application/releases/latest"
-CURRENT_VERSION = "0.1.7"  # Update this with each release
+CURRENT_VERSION = "0.2.1"  # Update this with each release
 DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction", "updates")
 
 def rate_limited_request(*args, **kwargs):
@@ -766,7 +766,7 @@ def save_config():
         messagebox.showerror("Unexpected Error", error_msg)
 
 def check_for_updates(silent=False):
-    """Check for application updates from GitHub."""
+    """Check for application updates from GitHub with comprehensive version checking."""
     try:
         logger.info("Checking for application updates...")
         
@@ -775,45 +775,82 @@ def check_for_updates(silent=False):
         
         if response.status_code == 200:
             latest_release = response.json()
-            latest_version = latest_release.get('tag_name', '').lstrip('v')
             
-            # Compare versions
-            if version.parse(latest_version) > version.parse(CURRENT_VERSION):
-                logger.info(f"New version available: {latest_version}")
+            # Extract version, handling potential 'v' prefix
+            latest_version_tag = latest_release.get('tag_name', '').lstrip('v')
+            
+            # Comprehensive version comparison
+            try:
+                latest_version = version.parse(latest_version_tag)
+                current_version = version.parse(CURRENT_VERSION)
                 
-                # Find Windows executable in assets
-                download_url = None
-                for asset in latest_release.get('assets', []):
-                    if asset['name'].endswith('.exe'):
-                        download_url = asset['browser_download_url']
-                        break
-                
-                if download_url:
-                    # Prompt user for update
-                    update_response = messagebox.askyesno(
-                        "Update Available", 
-                        f"A new version ({latest_version}) is available. Would you like to download and install it?"
-                    )
+                # Detailed version comparison
+                if latest_version > current_version:
+                    logger.info(f"New version available: {latest_version_tag}")
                     
-                    if update_response:
-                        download_and_install_update(download_url, latest_version)
+                    # Find Windows executable in assets
+                    download_url = None
+                    executable_asset = None
+                    for asset in latest_release.get('assets', []):
+                        if asset['name'].lower().endswith('.exe'):
+                            download_url = asset['browser_download_url']
+                            executable_asset = asset
+                            break
+                    
+                    if download_url:
+                        # Prepare detailed update information
+                        update_details = {
+                            'version': latest_version_tag,
+                            'download_url': download_url,
+                            'file_size': executable_asset['size'] if executable_asset else 'Unknown',
+                            'published_at': latest_release.get('published_at', 'Unknown date'),
+                            'release_notes': latest_release.get('body', 'No release notes available')
+                        }
+                        
+                        # Prompt user with comprehensive update information
+                        update_message = (
+                            f"New Version Available: {update_details['version']}\n\n"
+                            f"File Size: {update_details['file_size'] / 1024 / 1024:.2f} MB\n"
+                            f"Published: {update_details['published_at']}\n\n"
+                            "Release Notes:\n"
+                            f"{update_details['release_notes']}\n\n"
+                            "Would you like to download and install this update?"
+                        )
+                        
+                        # Prompt for update
+                        update_response = messagebox.askyesno(
+                            "Update Available", 
+                            update_message
+                        )
+                        
+                        if update_response:
+                            download_and_install_update(download_url, latest_version_tag)
+                    else:
+                        if not silent:
+                            messagebox.showinfo("Update Check", "No executable found for update.")
                 else:
                     if not silent:
-                        messagebox.showinfo("Update Check", "No executable found for update.")
-            else:
+                        messagebox.showinfo("Update Check", "You are running the latest version.")
+            
+            except ValueError as ve:
+                logger.error(f"Version parsing error: {ve}")
                 if not silent:
-                    messagebox.showinfo("Update Check", "You are running the latest version.")
+                    messagebox.showerror("Update Error", f"Error parsing version: {ve}")
         else:
             if not silent:
-                messagebox.showerror("Update Error", "Failed to check for updates.")
+                messagebox.showerror("Update Error", f"Failed to check for updates. Status code: {response.status_code}")
     
-    except Exception as e:
-        logger.error(f"Error checking for updates: {e}")
+    except requests.exceptions.RequestException as re:
+        logger.error(f"Network error during update check: {re}")
         if not silent:
-            messagebox.showerror("Update Error", f"An error occurred while checking for updates: {e}")
+            messagebox.showerror("Network Error", f"Could not connect to update server: {re}")
+    except Exception as e:
+        logger.error(f"Unexpected error checking for updates: {e}")
+        if not silent:
+            messagebox.showerror("Update Error", f"An unexpected error occurred: {e}")
 
 def download_and_install_update(download_url, version):
-    """Download and install application update."""
+    """Download and install application update with enhanced error handling."""
     try:
         # Ensure download directory exists
         os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -824,12 +861,24 @@ def download_and_install_update(download_url, version):
         # Show download progress
         def download_progress(count, block_size, total_size):
             percent = min(int(count * block_size * 100 / total_size), 100)
-            progress_label.config(text=f"Downloading update: {percent}%")
-            window.update_idletasks()
+            if progress_label:
+                progress_label.config(text=f"Downloading update: {percent}%")
+            if window:
+                window.update_idletasks()
         
         # Download the file
         logger.info(f"Downloading update from {download_url}")
+        
+        # Verify download URL
+        if not download_url.startswith(('http://', 'https://')):
+            raise ValueError("Invalid download URL")
+        
+        # Download with progress tracking
         urllib.request.urlretrieve(download_url, download_path, download_progress)
+        
+        # Verify downloaded file
+        if not os.path.exists(download_path) or os.path.getsize(download_path) == 0:
+            raise IOError("Download failed or file is empty")
         
         # Prepare update script
         update_script_path = os.path.join(DOWNLOAD_DIR, "update.bat")
@@ -857,7 +906,8 @@ def download_and_install_update(download_url, version):
         subprocess.Popen([update_script_path], shell=True)
         
         # Close the current application
-        window.quit()
+        if window:
+            window.quit()
         sys.exit(0)
     
     except Exception as e:
@@ -865,14 +915,16 @@ def download_and_install_update(download_url, version):
         messagebox.showerror("Update Error", f"Failed to download update: {e}")
 
 def periodic_update_check():
-    """Periodically check for updates in the background."""
+    """Periodically check for updates in the background with enhanced logging."""
     try:
+        logger.info("Performing background update check...")
         check_for_updates(silent=True)
     except Exception as e:
         logger.error(f"Background update check failed: {e}")
     
     # Schedule next update check (every 24 hours)
-    window.after(24 * 60 * 60 * 1000, periodic_update_check)
+    if window:
+        window.after(24 * 60 * 60 * 1000, periodic_update_check)
 
 async def show_splash_screen():
     """Create a splash screen with simulated loading."""
