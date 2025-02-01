@@ -499,18 +499,70 @@ class GUILogHandler:
     def flush(self):
         pass
 
+def show_tutorial(field_name):
+    """Show a tutorial popup for the specified field."""
+    tutorials = {
+        "webhook": (
+            "Discord Webhook Tutorial",
+            "To get your Discord Webhook URL:\n\n"
+            "1. Open Discord and go to your server\n"
+            "2. Right-click on a channel and select 'Edit Channel'\n"
+            "3. Click on 'Integrations'\n"
+            "4. Click on 'Create Webhook'\n"
+            "5. Click 'Copy Webhook URL'\n"
+            "6. Paste the URL here"
+        ),
+        "cookie": (
+            "Roblox Security Cookie Tutorial",
+            "To get your .ROBLOSECURITY cookie:\n\n"
+            "1. Go to Roblox.com and log in\n"
+            "2. Press F12 to open Developer Tools\n"
+            "3. Go to 'Application' tab\n"
+            "4. Click 'Cookies' in the left sidebar\n"
+            "5. Click on 'https://www.roblox.com'\n"
+            "6. Find '.ROBLOSECURITY' and copy its value\n"
+            "7. Paste it here"
+        ),
+        "emoji": (
+            "Discord Emoji ID Tutorial",
+            "To get your Discord Emoji ID:\n\n"
+            "1. In Discord, type '\\' followed by your emoji name\n"
+            "2. The emoji ID will appear in the format <:name:ID>\n"
+            "3. Copy only the numbers (ID) part\n"
+            "4. Paste the ID here"
+        )
+    }
+    
+    title, message = tutorials.get(field_name, ("Tutorial", "Please fill in this field."))
+    messagebox.showinfo(title, message)
+
 def save_config():
-    """Save the configuration with validation."""
+    """Save the configuration with validation and tutorials."""
     try:
         webhook_url = discord_webhook_input.get()
         roblosecurity = roblox_cookie_input.get()
         emoji_id = emoji_id_input.get()
 
+        # Check for empty fields and show tutorials
+        if not webhook_url or webhook_url.isspace():
+            show_tutorial("webhook")
+            return
+        if not roblosecurity or roblosecurity.isspace():
+            show_tutorial("cookie")
+            return
+        if not emoji_id or emoji_id.isspace():
+            show_tutorial("emoji")
+            return
+
         # Validate inputs
         if not validate_webhook_url(webhook_url):
-            raise ValueError("Invalid Discord webhook URL format")
+            messagebox.showerror("Invalid Input", "Invalid Discord webhook URL format")
+            show_tutorial("webhook")
+            return
         if not validate_emoji_id(emoji_id):
-            raise ValueError("Invalid Discord emoji ID format")
+            messagebox.showerror("Invalid Input", "Invalid Discord emoji ID format")
+            show_tutorial("emoji")
+            return
         
         config["DISCORD_WEBHOOK_URL"] = webhook_url
         config["ROBLOSECURITY"] = roblosecurity
