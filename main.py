@@ -468,7 +468,19 @@ def stop_monitoring():
 
 def apply_styles(widget):
     """Apply common styles to widgets.""" 
-    widget.config(font=("Arial", 12), bg="#2e3b4e", fg="white", relief="flat", bd=2, highlightthickness=0)
+    widget.config(
+        font=("Arial", 12),
+        bg="#2e3b4e",
+        fg="white",
+        relief="flat",
+        bd=2,
+        highlightthickness=0,
+        insertbackground='white'  # Make cursor white
+    )
+    
+    # If it's an Entry widget, bind focus events
+    if isinstance(widget, tk.Entry):
+        widget.config(selectbackground="#4a76a8", selectforeground="white")  # Selection colors
 
 def apply_button_styles(button):
     """Apply button styles with hover effect.""" 
