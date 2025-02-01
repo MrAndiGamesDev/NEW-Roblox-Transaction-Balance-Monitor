@@ -14,15 +14,64 @@ from datetime import datetime
 APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
+# Rate limiting for API calls
+RATE_LIMIT = 1.0  # seconds between API calls
+last_api_call = 0
+
+def rate_limited_request(*args, **kwargs):
+    """Make a rate-limited request to prevent too many API calls."""
+    global last_api_call
+    current_time = time.time()
+    sleep_time = RATE_LIMIT - (current_time - last_api_call)
+    if sleep_time > 0:
+        time.sleep(sleep_time)
+    last_api_call = time.time()
+    return requests.request(*args, **kwargs)
+
+def sanitize_input(text):
+    """Sanitize user input to prevent injection."""
+    if not isinstance(text, str):
+        return ""
+    # Remove any non-printable characters
+    return ''.join(char for char in text if char.isprintable())
+
+def validate_webhook_url(url):
+    """Validate Discord webhook URL format."""
+    if not url.startswith(('http://', 'https://')):
+        return False
+    if 'discord.com/api/webhooks/' not in url:
+        return False
+    return True
+
+def validate_emoji_id(emoji_id):
+    """Validate Discord emoji ID format."""
+    return emoji_id.isdigit()
+
+def safe_file_write(file_path, content):
+    """Safely write content to a file."""
+    try:
+        temp_path = file_path + '.tmp'
+        with open(temp_path, 'w') as f:
+            json.dump(content, f)
+        os.replace(temp_path, file_path)
+    except Exception as e:
+        logger.error(f"Error writing file {file_path}: {e}")
+        raise
+
 def save_config_to_file(config):
-    """Save the configuration to the JSON file.""" 
-    # Create app directory if it doesn't exist
+    """Save the configuration to the JSON file with validation."""
+    # Sanitize inputs
+    sanitized_config = {
+        "DISCORD_WEBHOOK_URL": sanitize_input(config["DISCORD_WEBHOOK_URL"]),
+        "ROBLOSECURITY": sanitize_input(config["ROBLOSECURITY"]),
+        "DISCORD_EMOJI_ID": sanitize_input(config["DISCORD_EMOJI_ID"])
+    }
+    
     if not os.path.exists(APP_DIR):
-        os.makedirs(APP_DIR)
+        os.makedirs(APP_DIR, mode=0o700)  # Secure permissions
         logger.info(f"Created application directory at {APP_DIR}")
     
-    with open(CONFIG_FILE, "w") as file:
-        json.dump(config, file)
+    safe_file_write(CONFIG_FILE, sanitized_config)
 
 # Default config loaded
 config = {
@@ -62,7 +111,7 @@ COOKIES = {
 def get_authenticated_user_id():
     """Fetch the authenticated user's ID from Roblox API.""" 
     roblox_users_url = "https://users.roblox.com"
-    response = requests.get(f"{roblox_users_url}/v1/users/authenticated", cookies=COOKIES)
+    response = rate_limited_request('GET', f"{roblox_users_url}/v1/users/authenticated", cookies=COOKIES)
     if response.status_code == 200:
         return response.json().get("id")
     else:
@@ -147,20 +196,21 @@ def load_last_robux():
 
 def save_last_transaction_data(data):
     """Save the current transaction data to a file.""" 
-    with open(TRANSACTION_DATA_FILE, "w") as file:
-        json.dump(data, file)
+    safe_file_write(TRANSACTION_DATA_FILE, data)
 
 def save_last_robux(robux):
     """Save the current Robux balance to a separate file.""" 
-    with open(ROBUX_FILE, "w") as file:
-        json.dump({"robux": robux}, file)
+    safe_file_write(ROBUX_FILE, {"robux": robux})
 
 def send_discord_notification_for_transactions(changes):
-    """Send a notification to the Discord webhook for transaction data changes with an embed.""" 
+    """Send a notification to the Discord webhook for transaction data changes with rate limiting."""
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL")
+        return
 
     embed = {
         "title": "🔔Roblox Transaction Data Changed!",
-        "description": f"The transaction data has been updated",
+        "description": "The transaction data has been updated",
         "fields": [{"name": key, "value": f"From <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(old)} To <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(new)}", "inline": False} for key, (old, new) in changes.items()],
         "color": 0x00ff00,
         "footer": {
@@ -171,17 +221,20 @@ def send_discord_notification_for_transactions(changes):
     payload = {"embeds": [embed]}
 
     try:
-        response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         logger.error(f"Error sending Discord notification for transactions: {e}")
 
 def send_discord_notification_for_robux(robux, last_robux):
-    """Send a notification to the Discord webhook for Robux balance changes with an embed.""" 
+    """Send a notification to the Discord webhook for Robux balance changes with rate limiting."""
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL")
+        return
 
     embed = {
         "title": "🔔Robux Balance Changed!",
-        "description": f"The Robux balance has changed",
+        "description": "The Robux balance has changed",
         "fields": [
             {"name": "Before", "value": f"<:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(last_robux)}", "inline": True},
             {"name": "After", "value": f"<:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(robux)}", "inline": True}
@@ -195,7 +248,7 @@ def send_discord_notification_for_robux(robux, last_robux):
     payload = {"embeds": [embed]}
 
     try:
-        response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
         response.raise_for_status()
         logger.info("Discord Webhook Has Successfully Sent To Discord!")
     except requests.exceptions.RequestException as e:
@@ -205,7 +258,7 @@ def check_transactions():
     """Check the transaction data and send Discord notifications if anything has changed.""" 
     try:
         last_transaction_data = load_last_transaction_data()
-        response = requests.get(TRANSACTION_API_URL, cookies=COOKIES, timeout=10)
+        response = rate_limited_request('GET', TRANSACTION_API_URL, cookies=COOKIES, timeout=10)
 
         if response.status_code == 401:
             logger.error("Roblox security cookie has expired. Please update your .ROBLOSECURITY cookie.")
@@ -228,7 +281,7 @@ def check_robux():
     """Check the Robux balance and send a notification if it has changed.""" 
     try:
         last_robux = load_last_robux()
-        response = requests.get(CURRENCY_API_URL, cookies=COOKIES, timeout=10)
+        response = rate_limited_request('GET', CURRENCY_API_URL, cookies=COOKIES, timeout=10)
 
         if response.status_code == 401:
             logger.error("Roblox security cookie has expired. Please update your .ROBLOSECURITY cookie.")
@@ -257,7 +310,7 @@ def validate_config():
     
     # Test Roblox cookie
     try:
-        test_response = requests.get("https://users.roblox.com/v1/users/authenticated", 
+        test_response = rate_limited_request('GET', "https://users.roblox.com/v1/users/authenticated", 
                                    cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
                                    timeout=10)
         if test_response.status_code == 401:
@@ -274,7 +327,7 @@ def validate_config():
             "description": "This is a test message to verify the webhook configuration.",
             "color": 0x00ff00
         }
-        test_response = requests.post(config["DISCORD_WEBHOOK_URL"], json={"embeds": [test_embed]}, timeout=10)
+        test_response = rate_limited_request('POST', config["DISCORD_WEBHOOK_URL"], json={"embeds": [test_embed]}, timeout=10)
         if test_response.status_code == 404:
             return False, "Invalid Discord webhook URL. The webhook may have been deleted."
         elif test_response.status_code != 204:  # Discord returns 204 for successful webhook posts
@@ -447,16 +500,26 @@ class GUILogHandler:
         pass
 
 def save_config():
-    """Save the configuration.""" 
+    """Save the configuration with validation."""
     try:
-        config["DISCORD_WEBHOOK_URL"] = discord_webhook_input.get()
-        config["ROBLOSECURITY"] = roblox_cookie_input.get()
-        config["DISCORD_EMOJI_ID"] = emoji_id_input.get()
+        webhook_url = discord_webhook_input.get()
+        roblosecurity = roblox_cookie_input.get()
+        emoji_id = emoji_id_input.get()
+
+        # Validate inputs
+        if not validate_webhook_url(webhook_url):
+            raise ValueError("Invalid Discord webhook URL format")
+        if not validate_emoji_id(emoji_id):
+            raise ValueError("Invalid Discord emoji ID format")
+        
+        config["DISCORD_WEBHOOK_URL"] = webhook_url
+        config["ROBLOSECURITY"] = roblosecurity
+        config["DISCORD_EMOJI_ID"] = emoji_id
         save_config_to_file(config)
         
         # Reset UI styles
-        roblox_cookie_input.config(bg="#2e3b4e")  # Reset to normal background
-        roblox_cookie_label.config(fg="white")  # Reset to normal text color
+        roblox_cookie_input.config(bg="#2e3b4e")
+        roblox_cookie_label.config(fg="white")
         
         # Re-enable start button if config is valid
         is_valid, _ = validate_config()
@@ -476,7 +539,7 @@ if __name__ == "__main__":
     # Run GUI in a separate thread
     try:
         window = tk.Tk()
-        response = requests.get(icon_url)
+        response = rate_limited_request('GET', icon_url)
         response.raise_for_status()  # Raise an error for failed requests
 
         # Load the icon image
