@@ -1121,27 +1121,34 @@ def auto_update_from_repo():
     try:
         # Repository details
         REPO_OWNER = "MrAndiGamesDev"
-        REPO_NAME = "Roblox-Transaction-Application"
+        REPO_NAME = "NEW-Roblox-Transaction-Balance-Monitor"
         BRANCH = "main"
         BASE_URL = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{BRANCH}"
         
         # List of files to update (modify this list as needed)
         FILES_TO_UPDATE = [
             "main.py",
-            # Add other critical files here
         ]
         
         # Current directory
         current_dir = os.path.dirname(os.path.abspath(__file__))
+        logger.info(f"Current directory for update: {current_dir}")
+        
+        # Verify directory exists
+        if not os.path.exists(current_dir):
+            logger.error(f"Directory does not exist: {current_dir}")
+            raise FileNotFoundError(f"Cannot find directory: {current_dir}")
         
         # Flag to track if any updates were made
         updates_made = False
+        updated_files = []
         
         # Update each file
         for filename in FILES_TO_UPDATE:
             try:
                 # Construct full URL for the file
                 file_url = f"{BASE_URL}/{filename}"
+                logger.info(f"Attempting to download: {file_url}")
                 
                 # Download the file
                 response = rate_limited_request('GET', file_url)
@@ -1149,16 +1156,23 @@ def auto_update_from_repo():
                 if response.status_code == 200:
                     # Path to save the updated file
                     file_path = os.path.join(current_dir, filename)
+                    logger.info(f"Attempting to save file: {file_path}")
+                    
+                    # Ensure directory exists
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
                     
                     # Write the downloaded content
                     with open(file_path, 'wb') as f:
                         f.write(response.content)
                     
-                    logger.info(f"Updated file: {filename}")
+                    logger.info(f"Successfully updated file: {filename}")
                     updates_made = True
+                    updated_files.append(filename)
                 else:
                     logger.warning(f"Could not download {filename}: HTTP {response.status_code}")
             
+            except PermissionError:
+                logger.error(f"Permission denied when updating {filename}")
             except Exception as file_error:
                 logger.error(f"Error updating {filename}: {file_error}")
         
@@ -1169,7 +1183,7 @@ def auto_update_from_repo():
             # Show update success popup
             messagebox.showinfo(
                 "Update Successful", 
-                f"The following files have been updated:\n{', '.join(FILES_TO_UPDATE)}\n\n"
+                f"The following files have been updated:\n{', '.join(updated_files)}\n\n"
                 "The application will now restart to apply the updates."
             )
             
@@ -1181,6 +1195,11 @@ def auto_update_from_repo():
     
     except Exception as e:
         logger.error(f"Automatic update failed: {e}")
+        messagebox.showerror(
+            "Update Error", 
+            f"An error occurred during update:\n{e}\n\n"
+            "Please check the logs for more information."
+        )
 
 def check_for_updates():
     """
