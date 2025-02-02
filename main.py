@@ -54,6 +54,7 @@ def sanitize_input(text):
     """Sanitize user input to prevent injection."""
     if not isinstance(text, str):
         return ""
+        
     # Remove any non-printable characters
     return ''.join(char for char in text if char.isprintable())
 
@@ -186,6 +187,7 @@ FOLDERNAME = os.path.join(APP_DIR, "transaction_info")
 if not os.path.exists(FOLDERNAME):
     os.makedirs(FOLDERNAME)
     logger.info(f"Created transaction info directory at {FOLDERNAME}")
+
 # File to store the last known data
 TRANSACTION_DATA_FILE = os.path.join(FOLDERNAME, "last_transaction_data.json")
 ROBUX_FILE = os.path.join(FOLDERNAME, "last_robux.json")
@@ -912,6 +914,7 @@ async def detect_operating_system():
             "Linux Is No Longer Supported:\n\n"
             "1. Roblox recently added anti-hypervision protection.\n"
             "2. To prevent excessive usage, Linux support has been discontinued."
+            "3. Sadly Roblox does not support Linux cuz of exploitability."
         ),
     }
     
@@ -1183,7 +1186,14 @@ async def Initialize_gui():
         start_button.config(state='normal')
         stop_button.config(state='disabled')
 
+        def on_close():
+            """Handle window closure."""
+            global monitoring_event
+            monitoring_event.set()  # Stop monitoring
+            window.destroy()
+
         # Start the main event loop
+        window.protocol("WM_DELETE_WINDOW", on_close)
         window.mainloop()
 
         return True
@@ -1193,13 +1203,15 @@ async def Initialize_gui():
 
 async def prevent_antivirus_detection():
     """Implement methods to reduce false positive virus detection and ensure Windows-only execution"""
+    current_os = platform.system()
+
     try:
         # Check if running in a virtual environment
         if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
             return False
         
         # Windows-specific checks
-        if platform.system() == 'Windows':
+        if current_os == 'Windows':
             # Attempt to detect debugger
             try:
                 is_debugger_present = ctypes.windll.kernel32.IsDebuggerPresent()
