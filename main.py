@@ -1003,24 +1003,38 @@ async def show_splash_screen():
     except Exception as e:
         logger.warning(f"Failed to load splash screen logo: {e}")
 
-async def show_popup_for_unsupported_os(title, message):
+def show_popup_for_unsupported_os(title, message):
     root = tk.Tk()
     root.withdraw()  # Hide the root window
     messagebox.showerror(title, message)
 
-async def detect_operating_system():
-    supported_operating_systems = ["Windows", "MacOS"]
+def detect_operating_system():
+    supported_operating_systems = ["Windowa", "Darwin"]
     is_supported = False
     current_os = platform.system()
     
     os_msg = {
-        "Linux": (
-            "For Linux Users",
-            "Linux Is No Longer Supported:\n\n"
-            "1. Roblox recently added anti-hypervision protection.\n"
-            "2. To prevent excessive usage, Linux support has been discontinued."
-            "3. Sadly Roblox does not support Linux cuz of exploitability."
+        "Windows": (
+            "Windows Operating System",
+            "You are currently running on Windows:\n\n"
+            "1. This application was primarily designed for Linux.\n"
+            "2. Windows support is limited or not available.\n"
+            "3. Some features may not work as expected."
         ),
+        "Linux": (
+            "Linux Operating System",
+            "You are currently running on Linux:\n\n"
+            "1. Roblox recently added anti-hypervision protection.\n"
+            "2. Linux support has been discontinued.\n"
+            "3. Roblox does not support Linux due to exploitability."
+        ),
+        "Darwin": (
+            "macOS Operating System",
+            "You are currently running on macOS:\n\n"
+            "1. This application was primarily designed for Linux.\n"
+            "2. macOS support is limited or not available.\n"
+            "3. Some features may not work as expected."
+        )
     }
     
     # Iterate through supported operating systems
@@ -1057,7 +1071,7 @@ async def detect_operating_system():
                 os._exit(1)
     
     return is_supported
-    
+
 def show_tutorial(field_name):
     """Show a tutorial popup for the specified field."""
     tutorials = {
@@ -1345,7 +1359,7 @@ def check_operating_system_and_antivirus():
     asyncio.run(prevent_antivirus_detection())
     
     # First, check the operating system
-    os_check_result = asyncio.run(detect_operating_system())
+    os_check_result = detect_operating_system()
     
     # Only proceed with GUI initialization if OS is supported
     if os_check_result:
