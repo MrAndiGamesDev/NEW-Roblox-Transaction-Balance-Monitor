@@ -902,7 +902,7 @@ def show_popup_for_unsupported_os(title, message):
     messagebox.showerror(title, message)
 
 async def detect_operating_system():
-    supported_operating_systems = ["Windows"]
+    supported_operating_systems = ["Windows", "MacOS"]
     is_supported = False
     current_os = platform.system()
     
