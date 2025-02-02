@@ -9,6 +9,7 @@ import tkinter as tk
 import ctypes
 import platform
 import random
+import io
 from io import BytesIO
 from PIL import Image, ImageTk
 from loguru import logger
@@ -796,177 +797,213 @@ def lua_random(a=None, b=None):
 
 async def show_splash_screen():
     """Create a splash screen with simulated loading."""
-    # Create temporary root window
-    root = tk.Tk()
-    root.withdraw()
-    
-    # Create splash screen
-    splash = tk.Toplevel(root)
-    splash.title("Roblox Transaction Monitor")
-    splash.overrideredirect(True)  # Remove window decorations
-    
-    # Calculate center position
-    width = 400
-    height = 200
-    screen_width = splash.winfo_screenwidth()
-    screen_height = splash.winfo_screenheight()
-    x = (screen_width - width) // 2
-    y = (screen_height - height) // 2
-    splash.geometry(f"{width}x{height}+{x}+{y}")
-    
-    # Configure splash screen appearance
-    splash.configure(bg="#1d2636")
-    splash_frame = tk.Frame(splash, bg="#2e3b4e", bd=2, relief="solid")
-    splash_frame.place(relx=0.5, rely=0.5, anchor="center", width=380, height=180)
-    
-    # Add application name
-    title_label = tk.Label(
-        splash_frame, 
-        text="Roblox Transaction/Balance\nMonitoring", 
-        font=("Arial", 16, "bold"),
-        bg="#2e3b4e",
-        fg="white"
-    )
-    title_label.pack(pady=(20, 10))
-    
-    # Add loading text
-    status_label = tk.Label(
-        splash_frame,
-        text="Initializing...",
-        font=("Arial", 10),
-        bg="#2e3b4e",
-        fg="white"
-    )
-    status_label.pack(pady=(0, 10))
-    
-    # Configure progress bar style
-    style = ttk.Style()
-    style.configure(
-        "Splash.Horizontal.TProgressbar",
-        troughcolor='#1a1a1a',
-        background='#4CAF50',
-        darkcolor='#4CAF50',
-        lightcolor='#4CAF50',
-        bordercolor='#1a1a1a'
-    )
-    
-    # Add progress bar
-    progress_var = tk.DoubleVar()
-    progress_bar = ttk.Progressbar(
-        splash_frame,
-        style="Splash.Horizontal.TProgressbar",
-        variable=progress_var,
-        length=300,
-        mode="determinate"
-    )
-    progress_bar.pack(pady=10)
-    
-    def update_progress(text, value):
-        status_label.config(text=text)
-        progress_var.set(value)
-        splash.update()
-    
-    # Simulate loading steps
-    loading_steps = [
-        ("Starting application...", 2),
-        ("Initializing core components...", 5),
-        ("Loading dependencies...", 7),
-        ("Checking configuration...", 10),
-        ("Verifying system requirements...", 12),
-        ("Ensuring compatibility...", 14),
-        ("Loading resources...", 18),
-        ("Optimizing performance settings...", 22),
-        ("Setting up virtual environment...", 25),
-        ("Preparing interface...", 28),
-        ("Loading UI components...", 30),
-        ("Setting up user preferences...", 33),
-        ("Connecting to Roblox...", 35),
-        ("Establishing secure connection...", 38),
-        ("Verifying network status...", 40),
-        ("Authenticating user...", 45),
-        ("Validating credentials...", 50),
-        ("Retrieving user data...", 55),
-        ("Loading assets...", 58),
-        ("Applying updates...", 59),
-        ("Almost there...", 60),
-        ("Caching essential data...", 62),
-        ("Finalizing user session...", 65),
-        ("Configuring environment...", 70),
-        ("Syncing cloud data...", 75),
-        ("Setting up game configurations...", 78),
-        ("Checking for new content...", 80),
-        ("Downloading additional assets...", 81),
-        ("Compiling shaders...", 82),
-        ("Initializing game engine...", 83),
-        ("Loading game scripts...", 84),
-        ("Verifying file integrity...", 86),
-        ("Final optimizations...", 88),
-        ("Preloading textures and models...", 90),
-        ("Applying last-minute fixes...", 92),
-        ("Finalizing rendering settings...", 94),
-        ("Finalizing...", 95),
-        ("Cleaning up temporary files...", 97),
-        ("Preparing launch sequence...", 98),
-        ("Almost done!", 99),
-        ("Ready to launch!", 100)
-    ]
-    
-    # Perform actual initialization tasks
-    async def initialize_app():
-        nonlocal splash, root
-        
-        # Perform initialization tasks with progress updates
-        for text, progress in loading_steps:
-            update_progress(text, progress)
-            
-            # Simulate some async work
-            if progress == 30:
-                # Load application icon
-                try:
-                    response = rate_limited_request('GET', icon_url)
-                    response.raise_for_status()
-                except Exception as e:
-                    logger.warning(f"Failed to load application icon: {e}")
-            
-            elif progress == 50:
-                # Validate configuration
-                try:
-                    is_valid, message = validate_config()
-                    if not is_valid:
-                        logger.warning(f"Configuration validation warning: {message}")
-                except Exception as e:
-                    logger.error(f"Configuration validation error: {e}")
-            
-            elif progress == 70:
-                # Test Roblox API connectivity
-                try:
-                    test_response = rate_limited_request(
-                        'GET', 
-                        "https://users.roblox.com/v1/users/authenticated", 
-                        cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
-                        timeout=10
-                    )
-                    
-                    logger.info(f"Roblox API response status code: {test_response.status_code}")
-                    if test_response.status_code != 200:
-                        logger.warning("Roblox API connectivity test failed")
-                except Exception as e:
-                    logger.error(f"Roblox API connectivity error: {e}")
-            
-            # Small delay to simulate work
-            random_delay = lua_random(0.45, 0.9)
-            await asyncio.sleep(random_delay)
-        
-        # Close splash screen
-        splash.destroy()
-        root.destroy()
-    
-    # Run initialization
-    await initialize_app()
-    
-    return True
+    try:
+        # Create temporary root window
+        root = tk.Tk()
+        root.withdraw()
 
-def show_popup_for_unsupported_os(title, message):
+        # Create splash screen
+        splash = tk.Toplevel(root)
+        splash.title("Roblox Transaction Monitor")
+        splash.overrideredirect(True)  # Remove window decorations
+        
+        # Calculate center position
+        width = 500
+        height = 310
+        screen_width = splash.winfo_screenwidth()
+        screen_height = splash.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        splash.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Configure splash screen appearance
+        splash.configure(bg="#1d2636")
+        splash_frame = tk.Frame(splash, bg="#1d2636", bd=2, relief="solid")  # Lighter background
+        splash_frame.place(relx=0.5, rely=0.5, anchor="center", width=width, height=height)
+        
+        # Add application name
+        title_label = tk.Label(
+            splash_frame, 
+            text="Roblox Transaction & Robux Monitoring", 
+            font=("Arial", 18, "bold"),
+            bg="#1d2636",  # Matching background
+            fg="white"
+        )
+        title_label.pack(pady=(30, 15))
+        
+        # Add loading text
+        status_label = tk.Label(
+            splash_frame,
+            text="Initializing...",
+            font=("Arial", 12),
+            bg="#1d2636",  # Matching background
+            fg="white"
+        )
+        status_label.pack(pady=(0, 15))
+        
+        # Configure progress bar style
+        style = ttk.Style()
+        style.configure(
+            "Splash.Horizontal.TProgressbar",
+            troughcolor='#1a1a1a',
+            background='#1d2636',
+            darkcolor='#4CAF50',
+            lightcolor='#4CAF50',
+            bordercolor='#1a1a1a'
+        )
+        
+        # Add progress bar
+        progress_var = tk.DoubleVar()
+        progress_bar = ttk.Progressbar(
+            splash_frame,
+            style="Splash.Horizontal.TProgressbar",
+            variable=progress_var,
+            length=400,
+            mode="determinate"
+        )
+        progress_bar.pack(pady=15)
+        
+        # Update the window to ensure everything is drawn
+        splash.update()
+        
+        try:
+            # Load logo after setting up other UI elements
+            logo_response = rate_limited_request('GET', icon_url)
+            logo_response.raise_for_status()
+            
+            # Process logo image
+            logo_image = Image.open(io.BytesIO(logo_response.content))
+            
+            # Convert image to RGBA if it's not already
+            if logo_image.mode != 'RGBA':
+                logo_image = logo_image.convert('RGBA')
+            
+            # Resize image
+            logo_image = logo_image.resize((75, 75), Image.LANCZOS)
+            
+            # Create logo label with transparent background
+            logo_photo = ImageTk.PhotoImage(logo_image)
+            logo_label = tk.Label(
+                splash_frame, 
+                image=logo_photo, 
+                bg="#1d2636"  # Matching background color
+            )
+            logo_label.image = logo_photo  # Keep a reference to prevent garbage collection
+            logo_label.pack(pady=(10, 10), before=title_label)
+
+            # Update the window again
+            splash.update()
+        except Exception as e:
+            logger.warning(f"Failed to load splash screen logo: {e}")
+        
+        def update_progress(text, value):
+            status_label.config(text=text)
+            progress_var.set(value)
+            splash.update()
+        
+        # Simulate loading steps
+        loading_steps = [
+            ("Starting application...", 2),
+            ("Initializing core components...", 5),
+            ("Loading dependencies...", 7),
+            ("Checking configuration...", 10),
+            ("Verifying system requirements...", 12),
+            ("Ensuring compatibility...", 14),
+            ("Loading resources...", 18),
+            ("Optimizing performance settings...", 22),
+            ("Setting up virtual environment...", 25),
+            ("Preparing interface...", 28),
+            ("Loading UI components...", 30),
+            ("Setting up user preferences...", 33),
+            ("Connecting to Roblox...", 35),
+            ("Establishing secure connection...", 38),
+            ("Verifying network status...", 40),
+            ("Authenticating user...", 45),
+            ("Validating credentials...", 50),
+            ("Retrieving user data...", 55),
+            ("Loading assets...", 58),
+            ("Applying updates...", 59),
+            ("Almost there...", 60),
+            ("Caching essential data...", 62),
+            ("Finalizing user session...", 65),
+            ("Configuring environment...", 70),
+            ("Syncing cloud data...", 75),
+            ("Setting up game configurations...", 78),
+            ("Checking for new content...", 80),
+            ("Downloading additional assets...", 81),
+            ("Compiling shaders...", 82),
+            ("Initializing game engine...", 83),
+            ("Loading game scripts...", 84),
+            ("Verifying file integrity...", 86),
+            ("Final optimizations...", 88),
+            ("Preloading textures and models...", 90),
+            ("Applying last-minute fixes...", 92),
+            ("Finalizing rendering settings...", 94),
+            ("Finalizing...", 95),
+            ("Cleaning up temporary files...", 97),
+            ("Preparing launch sequence...", 98),
+            ("Almost done!", 99),
+            ("Ready to launch!", 100)
+        ]
+        
+        # Perform actual initialization tasks
+        async def initialize_app():
+            nonlocal splash, root
+            
+            # Perform initialization tasks with progress updates
+            for text, progress in loading_steps:
+                update_progress(text, progress)
+                
+                # Simulate some async work
+                if progress == 30:
+                    # Load application icon
+                    try:
+                        response = rate_limited_request('GET', icon_url)
+                        response.raise_for_status()
+                    except Exception as e:
+                        logger.warning(f"Failed to load application icon: {e}")
+                
+                elif progress == 50:
+                    # Validate configuration
+                    try:
+                        is_valid, message = validate_config()
+                        if not is_valid:
+                            logger.warning(f"Configuration validation warning: {message}")
+                    except Exception as e:
+                        logger.error(f"Configuration validation error: {e}")
+                
+                elif progress == 70:
+                    # Test Roblox API connectivity
+                    try:
+                        test_response = rate_limited_request(
+                            'GET', 
+                            "https://users.roblox.com/v1/users/authenticated", 
+                            cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
+                            timeout=10
+                        )
+                        
+                        logger.info(f"Roblox API response status code: {test_response.status_code}")
+                        if test_response.status_code != 200:
+                            logger.warning("Roblox API connectivity test failed")
+                    except Exception as e:
+                        logger.error(f"Roblox API connectivity error: {e}")
+                
+                # Small delay to simulate work
+                random_delay = lua_random(0.3, 0.6)
+                await asyncio.sleep(random_delay)
+            
+            # Close splash screen
+            splash.destroy()
+            root.destroy()
+        
+        # Run initialization
+        await initialize_app()
+        
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to load splash screen logo: {e}")
+
+async def show_popup_for_unsupported_os(title, message):
     root = tk.Tk()
     root.withdraw()  # Hide the root window
     messagebox.showerror(title, message)
@@ -1082,7 +1119,7 @@ async def Initialize_gui():
         window.resizable(False, False)
         window.title("Roblox Transaction & Robux Monitoring")
         window.config(bg="#1d2636")
-        window.geometry("800x700")
+        window.geometry("700x700")
         
         # Create main frame
         main_frame = tk.Frame(window, bg="#1d2636")
