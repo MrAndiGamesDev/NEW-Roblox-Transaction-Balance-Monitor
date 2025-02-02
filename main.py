@@ -1009,7 +1009,7 @@ def show_popup_for_unsupported_os(title, message):
     messagebox.showerror(title, message)
 
 def detect_operating_system():
-    supported_operating_systems = ["Windowa", "Darwin"]
+    supported_operating_systems = ["Windows", "Darwin"]
     is_supported = True
     current_os = platform.system()
     
