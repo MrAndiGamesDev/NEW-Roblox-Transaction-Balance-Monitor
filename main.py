@@ -896,6 +896,97 @@ async def show_splash_screen():
     
     return True
 
+def show_popup_for_unsupported_os(title, message):
+    root = tk.Tk()
+    root.withdraw()  # Hide the root window
+    messagebox.showerror(title, message)
+
+async def detect_operating_system():
+    supported_operating_systems = ["Windows"]
+    is_supported = False
+    current_os = platform.system()
+    
+    os_msg = {
+        "Linux": (
+            "For Linux Users",
+            "Linux Is No Longer Supported:\n\n"
+            "1. Roblox recently added anti-hypervision protection.\n"
+            "2. To prevent excessive usage, Linux support has been discontinued."
+        ),
+    }
+    
+    # Iterate through supported operating systems
+    for supported_os in supported_operating_systems:
+        if current_os == supported_os:
+            is_supported = True
+            break
+    
+    # If no supported OS is found, handle unsupported OS
+    if not is_supported:
+        try:
+            # Determine which tutorial message to show based on the current OS
+            title, message = os_msg.get(current_os, ("Unsupported OS", f"Your operating system ({current_os}) is not supported."))
+            
+            # Show error message
+            show_popup_for_unsupported_os(title, message)
+            
+            # Log the unsupported OS
+            logger.error(f"Unsupported operating system detected: {current_os}")
+            
+            # Attempt to exit the application
+            try:
+                sys.exit(1)
+            except:
+                os._exit(1)
+        
+        except Exception as e:
+            logger.error(f"Error handling unsupported OS: {e}")
+            
+            # Fallback exit
+            try:
+                sys.exit(1)
+            except:
+                os._exit(1)
+    
+    return is_supported
+    
+def show_tutorial(field_name):
+    """Show a tutorial popup for the specified field."""
+    tutorials = {
+        "webhook": (
+            "Discord Webhook Tutorial",
+            "To get your Discord Webhook URL:\n\n"
+            "1. Open Discord and go to your server\n"
+            "2. Right-click on a channel and select 'Edit Channel'\n"
+            "3. Click on 'Integrations'\n"
+            "4. Click on 'Create Webhook'\n"
+            "5. Click 'Copy Webhook URL'\n"
+            "6. Paste the URL here"
+        ),
+        "cookie": (
+            "Roblox Security Cookie Tutorial",
+            "To get your .ROBLOSECURITY cookie:\n\n"
+            "1. Go to Roblox.com and log in\n"
+            "2. Press F12 to open Developer Tools\n"
+            "3. Go to 'Application' tab\n"
+            "4. Click 'Cookies' in the left sidebar\n"
+            "5. Click on 'https://www.roblox.com'\n"
+            "6. Find '.ROBLOSECURITY' and copy its value\n"
+            "7. Paste it here"
+        ),
+        "emoji": (
+            "Discord Emoji ID Tutorial",
+            "To get your Discord Emoji ID:\n\n"
+            "1. In Discord, type '\\' followed by your emoji name\n"
+            "2. The emoji ID will appear in the format <:name:ID>\n"
+            "3. Copy only the numbers or copy the emoji link (ID) part\n"
+            "4. Paste the ID here"
+        )
+    }
+    
+    title, message = tutorials.get(field_name, ("Tutorial", "Please fill in this field."))
+    messagebox.showinfo(title, message)
+
 async def Initialize_gui():
     # Remove the existing splash screen code and replace with the new approach
     logger.info("Starting Roblox Transaction & Robux Monitoring application...")
@@ -1100,8 +1191,8 @@ async def Initialize_gui():
         logger.error(f"Error initializing GUI: {e}")
         messagebox.showerror("Initialization Error", str(e))
 
-def prevent_antivirus_detection():
-    """Implement methods to reduce false positive virus detection"""
+async def prevent_antivirus_detection():
+    """Implement methods to reduce false positive virus detection and ensure Windows-only execution"""
     try:
         # Check if running in a virtual environment
         if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
@@ -1131,8 +1222,19 @@ def prevent_antivirus_detection():
         logger.warning(f"Environment check failed: {e}")
         return False
 
-# Call this early in the application startup
-prevent_antivirus_detection()
+def check_operating_system():
+    # Call antivirus prevention early
+    asyncio.run(prevent_antivirus_detection())
+    
+    # First, check the operating system
+    os_check_result = asyncio.run(detect_operating_system())
+    
+    # Only proceed with GUI initialization if OS is supported
+    if os_check_result:
+        # Run the GUI initialization
+        asyncio.run(Initialize_gui())
+    else:
+        logger.error("Unsupported operating system. Application cannot start.")
 
 if __name__ == "__main__":
-    asyncio.run(Initialize_gui())
+    check_operating_system()
