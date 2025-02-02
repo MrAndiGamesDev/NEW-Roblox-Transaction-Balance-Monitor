@@ -1010,7 +1010,7 @@ def show_popup_for_unsupported_os(title, message):
 
 def detect_operating_system():
     supported_operating_systems = ["Windowa", "Darwin"]
-    is_supported = False
+    is_supported = True
     current_os = platform.system()
     
     os_msg = {
