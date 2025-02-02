@@ -822,7 +822,7 @@ async def show_splash_screen():
     # Add application name
     title_label = tk.Label(
         splash_frame, 
-        text="Roblox Transaction\nMonitoring", 
+        text="Roblox Transaction/Balance\nMonitoring", 
         font=("Arial", 16, "bold"),
         bg="#2e3b4e",
         fg="white"
@@ -868,26 +868,40 @@ async def show_splash_screen():
     
     # Simulate loading steps
     loading_steps = [
-        ("Starting application...", 5),
-        ("Initializing core components...", 8),
-        ("Checking configuration...", 12),
-        ("Verifying system requirements...", 15),
-        ("Loading resources...", 20),
-        ("Optimizing performance settings...", 25),
-        ("Preparing interface...", 30),
+        ("Starting application...", 2),
+        ("Initializing core components...", 5),
+        ("Loading dependencies...", 7),
+        ("Checking configuration...", 10),
+        ("Verifying system requirements...", 12),
+        ("Ensuring compatibility...", 14),
+        ("Loading resources...", 18),
+        ("Optimizing performance settings...", 22),
+        ("Setting up virtual environment...", 25),
+        ("Preparing interface...", 28),
+        ("Loading UI components...", 30),
         ("Setting up user preferences...", 33),
         ("Connecting to Roblox...", 35),
-        ("Establishing secure connection...", 40),
+        ("Establishing secure connection...", 38),
+        ("Verifying network status...", 40),
+        ("Authenticating user...", 45),
         ("Validating credentials...", 50),
         ("Retrieving user data...", 55),
         ("Loading assets...", 58),
         ("Applying updates...", 59),
         ("Almost there...", 60),
+        ("Caching essential data...", 62),
         ("Finalizing user session...", 65),
         ("Configuring environment...", 70),
         ("Syncing cloud data...", 75),
+        ("Setting up game configurations...", 78),
+        ("Checking for new content...", 80),
+        ("Initializing game engine...", 83),
         ("Final optimizations...", 85),
+        ("Preloading textures and models...", 88),
+        ("Applying last-minute fixes...", 90),
         ("Finalizing...", 95),
+        ("Cleaning up temporary files...", 97),
+        ("Almost done!", 99),
         ("Ready to launch!", 100)
     ]
     
