@@ -20,7 +20,6 @@ A GUI application to monitor Roblox transactions and Robux balance changes in re
 
 ## TODO
 
-- [x] Automatic Updates
 - [x] Dropdown menu like past day month year total
 
 ## Configuration
