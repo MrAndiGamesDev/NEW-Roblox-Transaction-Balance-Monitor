@@ -12,6 +12,12 @@ A GUI application to monitor Roblox transactions and Robux balance changes in re
 - [x] Customizable monitoring intervals
 - [x] Detailed logging system
 
+## Also just a Quick Fix
+
+- [x] Turn Anti virus off
+- [x] then download the app
+- [x] after that turn the anti virus back on and you're done
+
 ## TODO
 
 - [x] Automatic Updates
