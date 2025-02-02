@@ -8,6 +8,7 @@ import sys
 import tkinter as tk
 import ctypes
 import platform
+import random
 from io import BytesIO
 from PIL import Image, ImageTk
 from loguru import logger
@@ -60,11 +61,20 @@ def sanitize_input(text):
 
 def validate_webhook_url(url):
     """Validate Discord webhook URL format."""
+    # List of possible Discord webhook domains
+    discord_domains = [
+        'https://discord.com/api/webhooks/',
+        'https://discordapp.com/api/webhooks/',
+        'https://canary.discord.com/api/webhooks/',
+        'https://ptb.discord.com/api/webhooks/'
+    ]
+    
+    # Check URL starts with http or https
     if not url.startswith(('http://', 'https://')):
         return False
-    if 'discord.com/api/webhooks/' not in url:
-        return False
-    return True
+    
+    # Check if URL contains any of the valid Discord webhook domains
+    return any(domain in url for domain in discord_domains)
 
 def validate_emoji_id(emoji_id):
     """Validate Discord emoji ID format."""
@@ -761,6 +771,29 @@ def save_config():
         logger.error(error_msg)
         messagebox.showerror("Unexpected Error", error_msg)
 
+def lua_random(a=None, b=None):
+    """
+    Mimic Lua's math.random() function with support for float ranges
+    
+    Lua behavior:
+    - No args: returns float between 0 and 1
+    - One int arg n: returns int between 1 and n
+    - Two args a, b: returns int between a and b (inclusive)
+    """
+    if a is None:
+        return random.random()  # Returns float between 0 and 1
+    elif b is None:
+        # Single argument case: treat as max for integer
+        return random.randint(1, int(a))
+    else:
+        # Two arguments: handle both integer and float cases
+        if isinstance(a, float) or isinstance(b, float):
+            # If either argument is a float, use uniform distribution
+            return a + (b - a) * random.random()
+        else:
+            # Integer range case
+            return random.randint(a, b)
+
 async def show_splash_screen():
     """Create a splash screen with simulated loading."""
     # Create temporary root window
@@ -835,13 +868,27 @@ async def show_splash_screen():
     
     # Simulate loading steps
     loading_steps = [
-        ("Starting application...", 10),
-        ("Checking configuration...", 20),
-        ("Loading resources...", 30),
-        ("Preparing interface...", 50),
-        ("Connecting to Roblox...", 70),
-        ("Validating credentials...", 90),
-        ("Finalizing...", 100)
+        ("Starting application...", 5),
+        ("Initializing core components...", 8),
+        ("Checking configuration...", 12),
+        ("Verifying system requirements...", 15),
+        ("Loading resources...", 20),
+        ("Optimizing performance settings...", 25),
+        ("Preparing interface...", 30),
+        ("Setting up user preferences...", 33),
+        ("Connecting to Roblox...", 35),
+        ("Establishing secure connection...", 40),
+        ("Validating credentials...", 50),
+        ("Retrieving user data...", 55),
+        ("Loading assets...", 58),
+        ("Applying updates...", 59),
+        ("Almost there...", 60),
+        ("Finalizing user session...", 65),
+        ("Configuring environment...", 70),
+        ("Syncing cloud data...", 75),
+        ("Final optimizations...", 85),
+        ("Finalizing...", 95),
+        ("Ready to launch!", 100)
     ]
     
     # Perform actual initialization tasks
@@ -887,7 +934,8 @@ async def show_splash_screen():
                     logger.error(f"Roblox API connectivity error: {e}")
             
             # Small delay to simulate work
-            await asyncio.sleep(0.3)
+            random_delay = lua_random(0.25, 0.)
+            await asyncio.sleep(random_delay)
         
         # Close splash screen
         splash.destroy()
@@ -956,7 +1004,7 @@ async def detect_operating_system():
 def show_tutorial(field_name):
     """Show a tutorial popup for the specified field."""
     tutorials = {
-        "webhook": (
+        "Webhook": (
             "Discord Webhook Tutorial",
             "To get your Discord Webhook URL:\n\n"
             "1. Open Discord and go to your server\n"
@@ -966,7 +1014,7 @@ def show_tutorial(field_name):
             "5. Click 'Copy Webhook URL'\n"
             "6. Paste the URL here"
         ),
-        "cookie": (
+        "Cookie": (
             "Roblox Security Cookie Tutorial",
             "To get your .ROBLOSECURITY cookie:\n\n"
             "1. Go to Roblox.com and log in\n"
@@ -977,7 +1025,7 @@ def show_tutorial(field_name):
             "6. Find '.ROBLOSECURITY' and copy its value\n"
             "7. Paste it here"
         ),
-        "emoji": (
+        "Emoji": (
             "Discord Emoji ID Tutorial",
             "To get your Discord Emoji ID:\n\n"
             "1. In Discord, type '\\' followed by your emoji name\n"
@@ -1120,7 +1168,6 @@ async def Initialize_gui():
         progress_var = tk.DoubleVar()
         
         global progress_label
-        
         progress_label = tk.Label(
             progress_frame, 
             text="Monitoring inactive", 
