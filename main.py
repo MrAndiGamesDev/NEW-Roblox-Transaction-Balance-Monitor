@@ -1189,7 +1189,7 @@ def check_for_updates():
     try:
         # Repository details
         REPO_OWNER = "MrAndiGamesDev"
-        REPO_NAME = "Roblox-Transaction-Application"
+        REPO_NAME = "NEW-Roblox-Transaction-Balance-Monitor"
         BRANCH = "main"
         
         # GitHub API URL for latest commit
