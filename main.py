@@ -1008,6 +1008,129 @@ def show_tutorial(field_name):
     title, message = tutorials.get(field_name, ("Tutorial", "Please fill in this field."))
     messagebox.showinfo(title, message)
 
+def save_config():
+    """Save the configuration with validation and tutorials."""
+    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_input
+    global start_button, progress_label, roblox_cookie_label, save_button, window
+
+    try:
+        # Check if window is initialized
+        if window is None:
+            logger.error("Application window is not initialized")
+            messagebox.showerror(
+                "Configuration Error", 
+                "Application is not fully initialized. Please restart the application."
+            )
+            return
+
+        # Comprehensive check for input fields
+        input_fields = [
+            discord_webhook_input, roblox_cookie_input, emoji_id_input, 
+            emoji_name_input, timer_input, roblox_transaction_balance_input
+        ]
+        
+        # Check if any of the input fields are None
+        if any(field is None for field in input_fields):
+            logger.error("Some configuration input fields are not fully initialized")
+            messagebox.showerror(
+                "Configuration Error", 
+                "Application is not fully initialized. Please restart the application."
+            )
+            return
+
+        # Get input values safely
+        webhook_url = discord_webhook_input.get().strip()
+        roblosecurity = roblox_cookie_input.get().strip()
+        emoji_id = emoji_id_input.get().strip()
+        emoji_name = emoji_name_input.get().strip()  
+        interval = timer_input.get().strip()
+        
+        # Default to "Year" if transaction balance input is empty or not set
+        total_checks_type = roblox_transaction_balance_input.get().strip() or "Year"
+
+        # Comprehensive input validation
+        validation_errors = []
+
+        # Webhook URL validation
+        if not webhook_url:
+            validation_errors.append("Discord Webhook URL is required")
+        elif not validate_webhook_url(webhook_url):
+            validation_errors.append("Invalid Discord webhook URL format")
+
+        # Roblox Security Cookie validation
+        if not roblosecurity:
+            validation_errors.append("Roblox Security Cookie is required")
+        else:
+            is_valid_cookie, cookie_message = validate_roblosecurity(roblosecurity)
+            if not is_valid_cookie:
+                validation_errors.append(cookie_message)
+
+        # Emoji ID validation
+        if not emoji_id:
+            validation_errors.append("Emoji ID is required")
+        elif not validate_emoji_id(emoji_id):
+            validation_errors.append("Invalid Discord emoji ID format")
+
+        # Emoji Name validation
+        if not emoji_name:
+            validation_errors.append("Emoji Name is required")
+
+        # Check Interval validation
+        if not interval:
+            validation_errors.append("Check Interval is required")
+        else:
+            try:
+                interval_value = int(interval)
+                if interval_value < 10:
+                    validation_errors.append("Check Interval must be at least 10 seconds")
+            except ValueError:
+                validation_errors.append("Check Interval must be a valid number")
+
+        # If there are validation errors, show them and return
+        if validation_errors:
+            error_message = "Please correct the following errors:\n\n" + "\n".join(f"• {error}" for error in validation_errors)
+            logger.warning(f"Configuration validation failed: {error_message}")
+            messagebox.showerror("Configuration Validation Failed", error_message)
+            return
+
+        # If we've passed all validations, update the config
+        config.update({
+            "DISCORD_WEBHOOK_URL": webhook_url,
+            "ROBLOSECURITY": roblosecurity,
+            "DISCORD_EMOJI_ID": emoji_id,
+            "DISCORD_EMOJI_NAME": emoji_name,
+            "CHECK_INTERVAL": interval,
+            "TOTAL_CHECKS_TYPE": total_checks_type
+        })
+
+        # Save configuration
+        save_config_to_file(config)
+        
+        # Reset UI styles for cookie input
+        if roblox_cookie_input and roblox_cookie_label:
+            roblox_cookie_input.config(bg="#2e3b4e")
+            roblox_cookie_label.config(fg="white")
+        
+        # Re-enable start button and update progress label if config is valid
+        is_valid, validation_message = validate_config()
+        if is_valid:
+            if start_button:
+                start_button.config(state='normal')
+            if save_button:
+                save_button.config(state='normal')
+            if progress_label:
+                progress_label.config(text="Monitoring inactive")
+            logger.info("Configuration saved and validated successfully")
+            messagebox.showinfo("Success", "Configuration Saved Successfully!")
+        else:
+            logger.warning(f"Configuration saved but validation failed: {validation_message}")
+            messagebox.showwarning("Partial Success", f"Configuration saved, but: {validation_message}")
+
+    except Exception as e:
+        error_msg = f"Unexpected error saving configuration: {str(e)}"
+        logger.error(error_msg)
+        messagebox.showerror("Unexpected Error", error_msg)
+
 async def Initialize_gui():
     # Remove the existing splash screen code and replace with the new approach
     logger.info("Starting Roblox Transaction & Robux Monitoring application...")
