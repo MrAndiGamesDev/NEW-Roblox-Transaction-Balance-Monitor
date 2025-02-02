@@ -4,15 +4,15 @@ import json
 import os
 import threading
 import asyncio
+import sys
+import subprocess
+import urllib.request
 import tkinter as tk
 from io import BytesIO
 from PIL import Image, ImageTk
 from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
-import sys
-import subprocess
-import urllib.request
 from packaging import version
 
 # Global variables for GUI elements
@@ -43,7 +43,6 @@ last_api_call = 0
 
 # New global variables for update
 UPDATE_CHECK_URL = "https://api.github.com/repos/MrAndiGamesDev/Roblox-Transaction-Application/releases/latest"
-CURRENT_VERSION = "0.2.3"  # Update this with each release
 DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction", "updates")
 
 def rate_limited_request(*args, **kwargs):
@@ -795,7 +794,10 @@ def check_for_updates(silent=False):
             # Comprehensive version comparison
             try:
                 latest_version = version.parse(latest_version_tag)
-                current_version = version.parse(CURRENT_VERSION)
+                
+                # Fetch current version from the latest release
+                current_version_tag = latest_release.get('tag_name', '').lstrip('v')
+                current_version = version.parse(current_version_tag)
                 
                 # Detailed version comparison
                 if latest_version > current_version:
@@ -1204,6 +1206,7 @@ async def Initialize_gui():
         # Progress variables
         global progress_var
         progress_var = tk.DoubleVar()
+        
         global progress_label
         
         progress_label = tk.Label(
