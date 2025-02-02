@@ -1189,7 +1189,9 @@ async def Initialize_gui():
         def on_close():
             """Handle window closure."""
             global monitoring_event
-            monitoring_event.set()  # Stop monitoring
+            # Ensure monitoring_event exists and is not set
+            if monitoring_event is not None and not monitoring_event.is_set():
+                monitoring_event.set()  # Stop monitoring
             window.destroy()
 
         # Start the main event loop
@@ -1234,7 +1236,7 @@ async def prevent_antivirus_detection():
         logger.warning(f"Environment check failed: {e}")
         return False
 
-def check_operating_system():
+def check_operating_system_and_antivirus():
     # Call antivirus prevention early
     asyncio.run(prevent_antivirus_detection())
     
@@ -1249,4 +1251,4 @@ def check_operating_system():
         logger.error("Unsupported operating system. Application cannot start.")
 
 if __name__ == "__main__":
-    check_operating_system()
+    check_operating_system_and_antivirus()
