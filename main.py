@@ -5,11 +5,11 @@ import os
 import threading
 import asyncio
 import sys
-import tkinter as tk
 import ctypes
 import platform
 import random
 import io
+import tkinter as tk
 from io import BytesIO
 from PIL import Image, ImageTk
 from loguru import logger
@@ -1010,7 +1010,7 @@ def show_popup_for_unsupported_os(title, message):
 
 def detect_operating_system():
     supported_operating_systems = ["Windows", "Darwin"]
-    is_supported = True
+    is_supported = False
     current_os = platform.system()
     
     os_msg = {
@@ -1030,7 +1030,7 @@ def detect_operating_system():
         ),
         "Darwin": (
             "macOS Operating System",
-            "You are currently running on macOS:\n\n"
+            "You are currently running on MacOS:\n\n"
             "1. This application was primarily designed for Linux.\n"
             "2. macOS support is limited or not available.\n"
             "3. Some features may not work as expected."
@@ -1321,43 +1321,7 @@ async def Initialize_gui():
         logger.error(f"Error initializing GUI: {e}")
         messagebox.showerror("Initialization Error", str(e))
 
-async def prevent_antivirus_detection():
-    """Implement methods to reduce false positive virus detection and ensure Windows-only execution"""
-    current_os = platform.system()
-
-    try:
-        # Check if running in a virtual environment
-        if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-            return False
-        
-        # Windows-specific checks
-        if current_os == 'Windows':
-            # Attempt to detect debugger
-            try:
-                is_debugger_present = ctypes.windll.kernel32.IsDebuggerPresent()
-                if is_debugger_present:
-                    return False
-            except Exception:
-                pass
-            
-            # Add legitimate Windows application metadata
-            try:
-                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('RobloxTransactionMonitor')
-            except Exception:
-                pass
-        
-        # Add more legitimate application behaviors
-        logger.info("Application running in a clean environment")
-        return True
-    
-    except Exception as e:
-        logger.warning(f"Environment check failed: {e}")
-        return False
-
-def check_operating_system_and_antivirus():
-    # Call antivirus prevention early
-    asyncio.run(prevent_antivirus_detection())
-    
+def check_operating_system():
     # First, check the operating system
     os_check_result = detect_operating_system()
     
@@ -1369,4 +1333,4 @@ def check_operating_system_and_antivirus():
         logger.error("Unsupported operating system. Application cannot start.")
 
 if __name__ == "__main__":
-    check_operating_system_and_antivirus()
+    check_operating_system()
