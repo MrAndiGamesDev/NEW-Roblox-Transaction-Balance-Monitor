@@ -989,7 +989,7 @@ async def show_splash_screen():
                         logger.error(f"Roblox API connectivity error: {e}")
                 
                 # Small delay to simulate work
-                random_delay = lua_random(0.3, 0.6)
+                random_delay = lua_random(0.25, 0.5)
                 await asyncio.sleep(random_delay)
             
             # Close splash screen
@@ -1009,7 +1009,7 @@ def show_popup_for_unsupported_os(title, message):
     messagebox.showerror(title, message)
 
 def detect_operating_system():
-    supported_operating_systems = ["Windowa", "Darwin"]
+    supported_operating_systems = ["Windows", "Darwin"]
     is_supported = True
     current_os = platform.system()
     
@@ -1029,8 +1029,8 @@ def detect_operating_system():
             "3. Roblox does not support Linux due to exploitability."
         ),
         "Darwin": (
-            "macOS Operating System",
-            "You are currently running on macOS:\n\n"
+            "MacOS Operating System",
+            "You are currently running on MacOS:\n\n"
             "1. This application was primarily designed for Linux.\n"
             "2. macOS support is limited or not available.\n"
             "3. Some features may not work as expected."
@@ -1108,6 +1108,132 @@ def show_tutorial(field_name):
     
     title, message = tutorials.get(field_name, ("Tutorial", "Please fill in this field."))
     messagebox.showinfo(title, message)
+
+def auto_update_from_repo():
+    """
+    Automatically update the application directly from the GitHub repository.
+    
+    This function will:
+    1. Fetch the latest files from the main repository
+    2. Replace existing application files
+    3. Restart the application
+    """
+    try:
+        # Repository details
+        REPO_OWNER = "MrAndiGamesDev"
+        REPO_NAME = "Roblox-Transaction-Application"
+        BRANCH = "main"
+        BASE_URL = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{BRANCH}"
+        
+        # List of files to update (modify this list as needed)
+        FILES_TO_UPDATE = [
+            "main.py",
+            # Add other critical files here
+        ]
+        
+        # Current directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Flag to track if any updates were made
+        updates_made = False
+        
+        # Update each file
+        for filename in FILES_TO_UPDATE:
+            try:
+                # Construct full URL for the file
+                file_url = f"{BASE_URL}/{filename}"
+                
+                # Download the file
+                response = rate_limited_request('GET', file_url)
+                
+                if response.status_code == 200:
+                    # Path to save the updated file
+                    file_path = os.path.join(current_dir, filename)
+                    
+                    # Write the downloaded content
+                    with open(file_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    logger.info(f"Updated file: {filename}")
+                    updates_made = True
+                else:
+                    logger.warning(f"Could not download {filename}: HTTP {response.status_code}")
+            
+            except Exception as file_error:
+                logger.error(f"Error updating {filename}: {file_error}")
+        
+        # Restart if any updates were made
+        if updates_made:
+            logger.info("Application files updated from repository")
+            
+            # Show update success popup
+            messagebox.showinfo(
+                "Update Successful", 
+                f"The following files have been updated:\n{', '.join(FILES_TO_UPDATE)}\n\n"
+                "The application will now restart to apply the updates."
+            )
+            
+            # Restart the application
+            python = sys.executable
+            os.execl(python, python, *sys.argv)
+        else:
+            logger.info("No updates found")
+    
+    except Exception as e:
+        logger.error(f"Automatic update failed: {e}")
+
+def check_for_updates():
+    """
+    Check if updates are available from the repository.
+    """
+    try:
+        # Repository details
+        REPO_OWNER = "MrAndiGamesDev"
+        REPO_NAME = "Roblox-Transaction-Application"
+        BRANCH = "main"
+        
+        # GitHub API URL for latest commit
+        version_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/commits/{BRANCH}"
+        
+        # Fetch latest version information
+        response = rate_limited_request('GET', version_url)
+        
+        if response.status_code == 200:
+            latest_commit = response.json()
+            latest_commit_date = latest_commit.get('commit', {}).get('committer', {}).get('date')
+            
+            logger.info(f"Latest repository commit date: {latest_commit_date}")
+            
+            # Optional: Add more sophisticated update check logic here
+            # For now, we'll always suggest checking for updates
+            update_check = messagebox.askyesno(
+                "Check for Updates", 
+                f"Latest repository commit: {latest_commit_date}\n\n"
+                "Would you like to check for updates?"
+            )
+            
+            if update_check:
+                auto_update_from_repo()
+        else:
+            logger.warning("Could not check for updates")
+    
+    except Exception as e:
+        logger.error(f"Update check failed: {e}")
+
+def periodic_update_check():
+    """Periodically check for application updates."""
+    try:
+        check_for_updates()
+    except Exception as e:
+        logger.error(f"Periodic update check failed: {e}")
+    
+    # Schedule next update check (every 24 hours)
+    window.after(24 * 60 * 60 * 1000, periodic_update_check)
+
+def initialize_update_check():
+    """Initialize update checking mechanism."""
+    # Start periodic update checks
+    window.after(5000, periodic_update_check)  # First check after 5 seconds
 
 async def Initialize_gui():
     # Remove the existing splash screen code and replace with the new approach
@@ -1202,6 +1328,11 @@ async def Initialize_gui():
         roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
         apply_styles(roblox_transaction_balance_input)
         roblox_transaction_balance_input.pack(pady=5)
+
+        # Add Check for Updates button
+        update_button = tk.Button(left_frame, text="Check for Updates", command=check_for_updates)
+        apply_button_styles(update_button)
+        update_button.pack(pady=10)
 
         # Buttons
         save_button = tk.Button(left_frame, text="Save Config", command=save_config)
@@ -1311,6 +1442,9 @@ async def Initialize_gui():
             if monitoring_event is not None and not monitoring_event.is_set():
                 monitoring_event.set()  # Stop monitoring
             window.destroy()
+
+        # Initialize update checking mechanism
+        initialize_update_check()
 
         # Start the main event loop
         window.protocol("WM_DELETE_WINDOW", on_close)
