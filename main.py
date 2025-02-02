@@ -948,7 +948,7 @@ async def show_splash_screen():
                     logger.error(f"Roblox API connectivity error: {e}")
             
             # Small delay to simulate work
-            random_delay = lua_random(0.25, 0.)
+            random_delay = lua_random(0.45, 0.9)
             await asyncio.sleep(random_delay)
         
         # Close splash screen
