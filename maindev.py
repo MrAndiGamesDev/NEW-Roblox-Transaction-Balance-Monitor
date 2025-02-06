@@ -16,6 +16,9 @@ from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
 
+# Application version
+VERSION = "v1.0.0"  # Use 'v' prefix to match GitHub release convention
+
 # Global variables for GUI elements
 monitoring_event = None
 window = None
@@ -1141,12 +1144,12 @@ def update_app():
     
     try:
         # Get the latest version from the repository
-        response = requests.get('https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/master/VERSION')
+        response = requests.get('https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/master/VERSION.txt')
         response.raise_for_status()
         latest_version = response.text.strip()
         
         # Check if the current version is outdated
-        if latest_version != "v1.0.0":
+        if latest_version != VERSION:
             logger.info(f"New version {latest_version} available. Updating...")
             
             # Download the latest version of the script
