@@ -282,7 +282,7 @@ def send_discord_notification_for_transactions(changes):
         return
 
     embed = {
-        "title": f"{DEFAULT_EMOJI} Roblox Transaction Data Changed!",
+        "title": f":{DEFAULT_EMOJI}: Roblox Transaction Data Changed!",
         "description": "The transaction data has been updated",
         "fields": [{"name": key, "value": f"From <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(old)} To <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(new)}", "inline": False} for key, (old, new) in changes.items()],
         "color": 0x00ff00,
@@ -306,7 +306,7 @@ def send_discord_notification_for_robux(robux, last_robux):
         return
 
     embed = {
-        "title": f"{DEFAULT_EMOJI} Robux Balance Changed!",
+        "title": f":{DEFAULT_EMOJI}: Robux Balance Changed!",
         "description": "The Robux balance has changed",
         "fields": [
             {"name": "Before", "value": f"<:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(last_robux)}", "inline": True},
