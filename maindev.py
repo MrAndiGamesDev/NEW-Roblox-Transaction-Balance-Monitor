@@ -15,11 +15,6 @@ from PIL import Image, ImageTk
 from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
-import traceback
-from packaging import version
-
-# Application version
-VERSION = "v1.0.0"  # Use 'v' prefix to match GitHub release convention
 
 # Global variables for GUI elements
 monitoring_event = None
@@ -27,7 +22,6 @@ window = None
 progress_label = None
 progress_var = None
 start_button = None
-update_button = None
 stop_button = None
 save_button = None
 discord_webhook_input = None
@@ -45,7 +39,7 @@ APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
 # Default emoji
-DEFAULT_EMOJI = "bell"
+DEFAULT_EMOJI = ":bell:"
 
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
@@ -288,7 +282,7 @@ def send_discord_notification_for_transactions(changes):
         return
 
     embed = {
-        "title": f":{DEFAULT_EMOJI}: Roblox Transaction Data Changed!",
+        "title": f"{DEFAULT_EMOJI} Roblox Transaction Data Changed!",
         "description": "The transaction data has been updated",
         "fields": [{"name": key, "value": f"From <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(old)} To <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(new)}", "inline": False} for key, (old, new) in changes.items()],
         "color": 0x00ff00,
@@ -312,7 +306,7 @@ def send_discord_notification_for_robux(robux, last_robux):
         return
 
     embed = {
-        "title": f":{DEFAULT_EMOJI}: Robux Balance Changed!",
+        "title": f"{DEFAULT_EMOJI} Robux Balance Changed!",
         "description": "The Robux balance has changed",
         "fields": [
             {"name": "Before", "value": f"<:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(last_robux)}", "inline": True},
@@ -1140,150 +1134,6 @@ def save_config():
         logger.error(error_msg)
         messagebox.showerror("Unexpected Error", error_msg)
 
-# Automatic update system
-def update_app():
-    logger.info("Starting update check process...")
-    
-    try:
-        # Robust method to get current script path
-        import inspect
-        current_script = os.path.abspath(inspect.getfile(inspect.currentframe()))
-        
-        # Fallback method if inspect fails
-        if not os.path.exists(current_script):
-            current_script = os.path.abspath(__file__)
-        
-        # Additional fallback for Windows
-        if not os.path.exists(current_script) or '<stdin>' in current_script:
-            current_script = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'dev.py')
-        
-        # Validate script path
-        if not os.path.exists(current_script):
-            logger.error(f"Could not determine current script path. Attempted: {current_script}")
-            messagebox.showerror("Update Error", "Cannot locate the current script file.")
-            return
-        
-        logger.info(f"Using script path: {current_script}")
-        
-        # GitHub repository details
-        REPO_OWNER = "MrAndiGamesDev"
-        REPO_NAME = "NEW-Roblox-Transaction-Balance-Monitor"
-        BRANCH = "main"
-        
-        # Version check URL
-        version_url = f'https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{BRANCH}/VERSION.txt'
-        script_url = f'https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{BRANCH}/maindev.py'
-        
-        logger.info(f"Checking version at: {version_url}")
-        
-        # Fetch version with comprehensive error handling
-        try:
-            version_response = requests.get(version_url, timeout=10)
-            version_response.raise_for_status()
-            latest_version = version_response.text.strip()
-            logger.info(f"Latest version retrieved: {latest_version}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Network error checking version: {e}")
-            logger.error(f"URL used: {version_url}")
-            messagebox.showerror("Update Error", f"Could not check for updates: {e}")
-            return
-        except Exception as e:
-            logger.error(f"Unexpected error fetching version: {e}")
-            logger.error(f"Full error details: {traceback.format_exc()}")
-            messagebox.showerror("Update Error", "An unexpected error occurred while checking updates.")
-            return
-        
-        # Compare versions
-        from packaging import version as version_compare
-        
-        try:
-            current_parsed = version_compare.parse(VERSION)
-            latest_parsed = version_compare.parse(latest_version)
-            
-            logger.info(f"Current version: {VERSION}")
-            logger.info(f"Latest version: {latest_version}")
-            
-            if latest_parsed > current_parsed:
-                logger.info(f"New version {latest_version} available. Preparing to update...")
-                
-                # Download script with error handling
-                try:
-                    script_response = requests.get(script_url, timeout=30)
-                    script_response.raise_for_status()
-                    new_script = script_response.text
-                    
-                    # Validate downloaded script
-                    if not new_script or len(new_script) < 100:
-                        raise ValueError("Downloaded script is too short or empty")
-                except requests.exceptions.RequestException as e:
-                    logger.error(f"Failed to download update: {e}")
-                    logger.error(f"Script URL: {script_url}")
-                    messagebox.showerror("Download Error", f"Could not download update: {e}")
-                    return
-                
-                # Backup current script
-                backup_path = f"{current_script}.backup"
-                try:
-                    with open(backup_path, 'w', encoding='utf-8') as backup_file:
-                        with open(current_script, 'r', encoding='utf-8') as current_file:
-                            backup_file.write(current_file.read())
-                    logger.info(f"Backup created at: {backup_path}")
-                except Exception as backup_error:
-                    logger.warning(f"Could not create backup: {backup_error}")
-                
-                # Update script
-                try:
-                    with open(current_script, 'w', encoding='utf-8') as f:
-                        f.write(new_script)
-                    logger.info("Script updated successfully")
-                    
-                    # Progress visualization
-                    progress_label = tk.Label(window, text="Updating...", font=("Helvetica", 12))
-                    progress_label.pack()
-                    progress_bar = ttk.Progressbar(window, orient='horizontal', length=200, mode='determinate')
-                    progress_bar.pack()
-                    progress_bar['value'] = 0
-                    progress_bar['maximum'] = 100
-                    
-                    # Simulate update progress
-                    for i in range(10):
-                        progress_bar['value'] += 10
-                        window.update()
-                        time.sleep(0.2)
-                    
-                    logger.info("Update complete. Restarting application...")
-                    messagebox.showinfo("Update Successful", f"Updated to version {latest_version}")
-                    os.execl(sys.executable, sys.executable, *sys.argv)
-                
-                except Exception as update_error:
-                    logger.error(f"Update application failed: {update_error}")
-                    logger.error(f"Full error details: {traceback.format_exc()}")
-                    
-                    # Attempt to restore backup
-                    try:
-                        with open(backup_path, 'r', encoding='utf-8') as backup_file:
-                            with open(current_script, 'w', encoding='utf-8') as current_file:
-                                current_file.write(backup_file.read())
-                        logger.warning("Backup restored after failed update")
-                        messagebox.showerror("Update Failed", "Update could not be applied. Previous version restored.")
-                    except Exception as restore_error:
-                        logger.critical(f"Backup restoration failed: {restore_error}")
-                        logger.critical(f"Full error details: {traceback.format_exc()}")
-                        messagebox.showerror("Critical Error", "Update failed and backup restoration was unsuccessful.")
-            else:
-                logger.info("No updates available.")
-                messagebox.showinfo("Update Check", "You are running the latest version.")
-        
-        except Exception as version_error:
-            logger.error(f"Version comparison error: {version_error}")
-            logger.error(f"Full error details: {traceback.format_exc()}")
-            messagebox.showerror("Version Error", "Could not compare versions.")
-    
-    except Exception as unexpected_error:
-        logger.error(f"Unexpected error during update process: {unexpected_error}")
-        logger.error(f"Full error details: {traceback.format_exc()}")
-        messagebox.showerror("Unexpected Error", f"An unexpected error occurred: {unexpected_error}")
-
 async def Initialize_gui():
     # Remove the existing splash screen code and replace with the new approach
     logger.info("Starting Roblox Transaction & Robux Monitoring application...")
@@ -1393,11 +1243,6 @@ async def Initialize_gui():
         apply_button_styles(stop_button)
         stop_button.pack(pady=10)
         stop_button.config(state='disabled')  # Initially disabled
-
-        global update_button
-        update_button = tk.Button(left_frame, text="Update", command=update_app)
-        apply_button_styles(update_button)
-        update_button.pack(pady=10)
 
         # Create progress frame
         progress_frame = tk.Frame(window, bg="#1d2636")
