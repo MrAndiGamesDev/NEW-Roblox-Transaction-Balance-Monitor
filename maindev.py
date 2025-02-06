@@ -1290,7 +1290,7 @@ async def Initialize_gui():
         stop_button.config(state='disabled')  # Initially disabled
 
         global update_button
-        update_button = tk.Button(left_frame, text="Update", command=check_for_updates)
+        update_button = tk.Button(left_frame, text="Update", command=update_app)
         apply_button_styles(update_button)
         update_button.pack(pady=10)
 
