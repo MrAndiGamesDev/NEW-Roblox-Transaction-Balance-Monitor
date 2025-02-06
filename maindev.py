@@ -39,7 +39,7 @@ APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
 # Default emoji
-DEFAULT_EMOJI = "Notification"
+DEFAULT_EMOJI = "bell"
 
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
