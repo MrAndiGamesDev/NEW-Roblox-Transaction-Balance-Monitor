@@ -38,6 +38,9 @@ log_output = None
 APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
+# Default emoji
+DEFAULT_EMOJI = ":bell:"
+
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
 last_api_call = 0
@@ -279,7 +282,7 @@ def send_discord_notification_for_transactions(changes):
         return
 
     embed = {
-        "title": ":bell: Roblox Transaction Data Changed!",
+        "title": f"{DEFAULT_EMOJI} Roblox Transaction Data Changed!",
         "description": "The transaction data has been updated",
         "fields": [{"name": key, "value": f"From <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(old)} To <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(new)}", "inline": False} for key, (old, new) in changes.items()],
         "color": 0x00ff00,
@@ -303,7 +306,7 @@ def send_discord_notification_for_robux(robux, last_robux):
         return
 
     embed = {
-        "title": ":bell: Robux Balance Changed!",
+        "title": f"{DEFAULT_EMOJI} Robux Balance Changed!",
         "description": "The Robux balance has changed",
         "fields": [
             {"name": "Before", "value": f"<:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(last_robux)}", "inline": True},
@@ -671,11 +674,11 @@ def show_tutorial(field_name):
     tutorial_window.grab_set()
     tutorial_window.focus_set()
 
-def lua_random(a=None, b=None):
+def randomizednumber(a=None, b=None):
     """
-    Mimic Lua's math.random() function with support for float ranges
+    Mimic Python's math.random() function with support for float ranges
     
-    Lua behavior:
+    Python behavior:
     - No args: returns float between 0 and 1
     - One int arg n: returns int between 1 and n
     - Two args a, b: returns int between a and b (inclusive)
@@ -888,7 +891,7 @@ async def show_splash_screen():
                         logger.error(f"Roblox API connectivity error: {e}")
                 
                 # Small delay to simulate work
-                random_delay = lua_random(0.3, 0.6)
+                random_delay = randomizednumber(0.25, 0.5)
                 await asyncio.sleep(random_delay)
             
             # Close splash screen
@@ -1346,7 +1349,6 @@ async def Initialize_gui():
 def check_operating_system():
     # First, check the operating system
     os_check_result = detect_operating_system()
-    
     # Only proceed with GUI initialization if OS is supported
     if os_check_result:
         # Run the GUI initialization
