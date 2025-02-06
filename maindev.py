@@ -1146,7 +1146,7 @@ def update_app():
         latest_version = response.text.strip()
         
         # Check if the current version is outdated
-        if latest_version != VERSION:
+        if latest_version != "v1.0.0":
             logger.info(f"New version {latest_version} available. Updating...")
             
             # Download the latest version of the script
