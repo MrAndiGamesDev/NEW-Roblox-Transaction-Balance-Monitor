@@ -22,6 +22,7 @@ window = None
 progress_label = None
 progress_var = None
 start_button = None
+update_button = None
 stop_button = None
 save_button = None
 discord_webhook_input = None
@@ -1134,6 +1135,50 @@ def save_config():
         logger.error(error_msg)
         messagebox.showerror("Unexpected Error", error_msg)
 
+# Automatic update system
+def update_app():
+    logger.info("Checking for updates...")
+    
+    try:
+        # Get the latest version from the repository
+        response = requests.get('https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/master/VERSION')
+        response.raise_for_status()
+        latest_version = response.text.strip()
+        
+        # Check if the current version is outdated
+        if latest_version != VERSION:
+            logger.info(f"New version {latest_version} available. Updating...")
+            
+            # Download the latest version of the script
+            response = requests.get('https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/master/dev.py')
+            response.raise_for_status()
+            new_script = response.text
+            
+            # Update the script with the latest version
+            with open(__file__, 'w') as f:
+                f.write(new_script)
+            
+            # Show progress bar for update
+            progress_label = tk.Label(window, text="Updating...", font=("Helvetica", 12))
+            progress_label.pack()
+            progress_bar = ttk.Progressbar(window, orient='horizontal', length=200, mode='determinate')
+            progress_bar.pack()
+            progress_bar['value'] = 0
+            progress_bar['maximum'] = 100
+            
+            # Restart the application after update
+            while progress_bar['value'] < 100:
+                progress_bar['value'] += 10
+                window.update()
+                time.sleep(0.2)
+            
+            logger.info("Update complete. Restarting application...")
+            os.execl(sys.executable, sys.executable, *sys.argv)
+        else:
+            logger.info("No updates available.")
+    except Exception as e:
+        logger.error(f"Error checking for updates: {str(e)}")
+
 async def Initialize_gui():
     # Remove the existing splash screen code and replace with the new approach
     logger.info("Starting Roblox Transaction & Robux Monitoring application...")
@@ -1243,6 +1288,11 @@ async def Initialize_gui():
         apply_button_styles(stop_button)
         stop_button.pack(pady=10)
         stop_button.config(state='disabled')  # Initially disabled
+
+        global update_button
+        update_button = tk.Button(left_frame, text="Update", command=check_for_updates)
+        apply_button_styles(update_button)
+        update_button.pack(pady=10)
 
         # Create progress frame
         progress_frame = tk.Frame(window, bg="#1d2636")
