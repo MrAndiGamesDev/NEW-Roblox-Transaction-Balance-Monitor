@@ -20,7 +20,7 @@ A GUI application to monitor Roblox transactions and Robux balance changes in re
 
 ## TODO
 
-- [x] Dropdown menu like past day month year total
+- [x] Create a Dropdown menu like past day month year total
 
 ## Configuration
 
@@ -40,6 +40,10 @@ Run the application by executing this command
 ```
 powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/main.py').Content | python"
 ```
+Dev Version
+```
+powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/maindev.py').Content | python"
+```
 or
 ```
 Invoke-Expression (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/main.ps1").Content
@@ -47,4 +51,4 @@ Invoke-Expression (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MrA
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the Apache License - see the LICENSE file for details.
