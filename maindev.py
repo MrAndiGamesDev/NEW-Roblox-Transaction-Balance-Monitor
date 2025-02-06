@@ -1153,7 +1153,7 @@ def update_app():
             logger.info(f"New version {latest_version} available. Updating...")
             
             # Download the latest version of the script
-            response = requests.get('https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/master/dev.py')
+            response = requests.get('https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/master/maindev.py')
             response.raise_for_status()
             new_script = response.text
             
