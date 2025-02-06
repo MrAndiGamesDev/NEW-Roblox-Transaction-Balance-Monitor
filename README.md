@@ -37,14 +37,15 @@ The application requires the following configuration:
 
 Run the application by executing this command
 
+Python Stable Version
 ```
 powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/main.py').Content | python"
 ```
-Dev Version
+Python Dev Version
 ```
 powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/maindev.py').Content | python"
 ```
-or
+Power shell Version
 ```
 Invoke-Expression (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/main.ps1").Content
 ```
