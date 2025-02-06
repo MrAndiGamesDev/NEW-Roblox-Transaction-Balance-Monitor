@@ -1145,10 +1145,25 @@ def update_app():
     logger.info("Starting update check process...")
     
     try:
-        # Validate current script path
-        current_script = os.path.abspath(__file__)
+        # Robust method to get current script path
+        import inspect
+        current_script = os.path.abspath(inspect.getfile(inspect.currentframe()))
+        
+        # Fallback method if inspect fails
         if not os.path.exists(current_script):
-            raise FileNotFoundError(f"Current script not found: {current_script}")
+            current_script = os.path.abspath(__file__)
+        
+        # Additional fallback for Windows
+        if not os.path.exists(current_script) or '<stdin>' in current_script:
+            current_script = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'dev.py')
+        
+        # Validate script path
+        if not os.path.exists(current_script):
+            logger.error(f"Could not determine current script path. Attempted: {current_script}")
+            messagebox.showerror("Update Error", "Cannot locate the current script file.")
+            return
+        
+        logger.info(f"Using script path: {current_script}")
         
         # GitHub repository details
         REPO_OWNER = "MrAndiGamesDev"
