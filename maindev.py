@@ -1241,7 +1241,6 @@ async def Initialize_gui():
         )
 
         # Add credits button
-        # In the show_credits_gui function, modify the layout for center alignment
         def show_credits_gui():
             """
             Display a credits window with information about the application and its contributors.
@@ -1330,16 +1329,16 @@ async def Initialize_gui():
                 )
                 content_label.pack()
 
-        # Close button
-        close_button = tk.Button(
-            scrollable_frame, 
-            text="Close", 
-            command=credits_window.destroy, 
-            bg="#2196F3", 
-            fg="white", 
-            font=("Arial", 10, "bold")
-        )
-        close_button.pack(pady=20)
+            # Close button
+            close_button = tk.Button(
+                scrollable_frame, 
+                text="Close", 
+                command=credits_window.destroy, 
+                bg="#2196F3", 
+                fg="white", 
+                font=("Arial", 10, "bold")
+            )
+            close_button.pack(pady=20)
 
         credits_button = tk.Button(left_frame, text="Credits", command=show_credits_gui)
         apply_button_styles(credits_button)
