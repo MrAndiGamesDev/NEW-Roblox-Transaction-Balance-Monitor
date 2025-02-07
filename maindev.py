@@ -54,6 +54,16 @@ CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 # Default emoji
 DEFAULT_EMOJI = "bell"
 
+ALERT_EMOJI = "warning"
+
+DETECTION_EMOJI = "exclamation"
+
+CLOCK_EMOJI = "hourglass"
+
+COMPUTER_EMOJI = "desktop"
+
+ENDPOINT_EMOJI = "link"
+
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
 last_api_call = 0
@@ -488,28 +498,28 @@ def send_comprehensive_api_downtime_webhook(failure_details):
 
     # Construct a detailed embed with system and network information
     embed = {
-        "title": f"🚨 Roblox API Connectivity Failure 🚨",
+        "title": f":{ALERT_EMOJI}: Roblox API Connectivity Failure :{ALERT_EMOJI}",
         "description": "Critical API Monitoring Alert: Roblox Services Unreachable",
         "color": 0xff0000,  # Red color for critical alert
         "fields": [
             {
-                "name": "🔍 Failure Details",
+                "name": f":{DETECTION_EMOJI}: Failure Details",
                 "value": failure_details.get('error_message', 'Unknown connectivity issue'),
                 "inline": False
             },
             {
-                "name": "🕒 Timestamp",
+                "name": f":{CLOCK_EMOJI}: Timestamp",
                 "value": current_time.strftime("%Y-%m-%d %H:%M:%S UTC"),
                 "inline": True
             },
             {
-                "name": "💻 System Info",
+                "name": f":{COMPUTER_EMOJI}: System Info",
                 "value": f"OS: {platform.system()} {platform.release()}\n"
                          f"Python: {platform.python_version()}",
                 "inline": True
             },
             {
-                "name": "🌐 Endpoints Checked",
+                "name": f":{ENDPOINT_EMOJI}: Endpoints Checked",
                 "value": "\n".join(failure_details.get('endpoints_checked', [])),
                 "inline": False
             }
