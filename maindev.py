@@ -1254,10 +1254,22 @@ async def Initialize_gui():
             
             credits_window = tk.Toplevel(window)
             credits_window.title("Credits")
+            
             credits_window.geometry("500x600")
             credits_window.config(bg="#1d2636")
             credits_window.resizable(False, False)
             
+            response = rate_limited_request('GET', icon_url)
+            response.raise_for_status()  # Raise an error for failed requests
+
+            # Load the icon image
+            img_data = BytesIO(response.content)
+            icon = Image.open(img_data)
+            icon = ImageTk.PhotoImage(icon)
+
+            # Set the icon and window title
+            credits_window.iconphoto(False, icon)
+
             # Create a frame for scrolling
             credits_frame = tk.Frame(credits_window, bg="#1d2636")
             credits_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
@@ -1281,7 +1293,7 @@ async def Initialize_gui():
             # Credits title
             title_label = tk.Label(
                 scrollable_frame, 
-                text="Roblox Transaction & Robux Monitoring", 
+                text="Credits List", 
                 font=("Arial", 16, "bold"), 
                 fg="white", 
                 bg="#1d2636"
