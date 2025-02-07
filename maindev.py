@@ -36,6 +36,17 @@ log_output = None
 credits_window = None
 credits_button = None
 
+# Global variables for downtime tracking
+DOWNTIME_THRESHOLD = 3  # Number of consecutive failed checks before declaring downtime
+CURRENT_DOWNTIME_STREAK = 0
+TOTAL_DOWNTIME_DURATION = 0
+LAST_SUCCESSFUL_CHECK = None
+IS_IN_DOWNTIME = False
+
+# Add a global variable to track last downtime notification time to prevent spam
+LAST_DOWNTIME_NOTIFICATION_TIME = None
+DOWNTIME_NOTIFICATION_COOLDOWN = 15 * 60  # 15 minutes cooldown between repeated notifications
+
 # Load configuration from the JSON file
 APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
@@ -454,6 +465,187 @@ def handle_auth_error():
         "5. Click Save Config and try again"
     )
 
+def send_comprehensive_api_downtime_webhook(failure_details):
+    """
+    Send a comprehensive webhook notification about Roblox API downtime.
+    
+    Args:
+        failure_details (dict): Detailed information about the API failure
+    """
+    global LAST_DOWNTIME_NOTIFICATION_TIME
+    
+    current_time = datetime.now()
+    
+    # Check if we're within the cooldown period
+    if (LAST_DOWNTIME_NOTIFICATION_TIME is not None and 
+        (current_time - LAST_DOWNTIME_NOTIFICATION_TIME).total_seconds() < DOWNTIME_NOTIFICATION_COOLDOWN):
+        logger.info("Skipping downtime notification due to cooldown period")
+        return
+    
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL for downtime notification")
+        return
+
+    # Construct a detailed embed with system and network information
+    embed = {
+        "title": f"🚨 Roblox API Connectivity Failure 🚨",
+        "description": "Critical API Monitoring Alert: Roblox Services Unreachable",
+        "color": 0xff0000,  # Red color for critical alert
+        "fields": [
+            {
+                "name": "🔍 Failure Details",
+                "value": failure_details.get('error_message', 'Unknown connectivity issue'),
+                "inline": False
+            },
+            {
+                "name": "🕒 Timestamp",
+                "value": current_time.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "inline": True
+            },
+            {
+                "name": "💻 System Info",
+                "value": f"OS: {platform.system()} {platform.release()}\n"
+                         f"Python: {platform.python_version()}",
+                "inline": True
+            },
+            {
+                "name": "🌐 Endpoints Checked",
+                "value": "\n".join(failure_details.get('endpoints_checked', [])),
+                "inline": False
+            }
+        ],
+        "footer": {
+            "text": "Roblox Transaction Monitor - Automatic API Health Check"
+        }
+    }
+
+    payload = {"embeds": [embed]}
+
+    try:
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
+        response.raise_for_status()
+        
+        # Update last notification time
+        LAST_DOWNTIME_NOTIFICATION_TIME = current_time
+        
+        logger.info("Comprehensive API downtime webhook notification sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending comprehensive downtime notification: {e}")
+
+def check_roblox_api_status():
+    """
+    Check the overall Roblox API connectivity and status.
+    
+    Returns:
+        bool: True if API is accessible, False otherwise
+    """
+    global CURRENT_DOWNTIME_STREAK, TOTAL_DOWNTIME_DURATION, LAST_SUCCESSFUL_CHECK, IS_IN_DOWNTIME
+    
+    try:
+        # Check multiple critical Roblox API endpoints
+        api_endpoints = [
+            "https://users.roblox.com/v1/users/authenticated",
+            f"{ROBLOX_ECONOMY_API}/v2/users/{USERID}/transaction-totals?timeFrame={DATE_TYPE}&transactionType=summary",
+            f"{ROBLOX_ECONOMY_API}/v1/users/{USERID}/currency"
+        ]
+        
+        failed_endpoints = []
+        for endpoint in api_endpoints:
+            try:
+                response = rate_limited_request('GET', endpoint, cookies=COOKIES, timeout=10)
+                
+                if response.status_code != 200:
+                    failed_endpoints.append(f"{endpoint} - Status: {response.status_code}")
+                    raise requests.exceptions.RequestException(f"Non-200 status code from {endpoint}")
+            except requests.exceptions.RequestException as endpoint_error:
+                failed_endpoints.append(f"{endpoint} - Error: {str(endpoint_error)}")
+        
+        current_time = datetime.now()
+        
+        # Reset downtime tracking if previously in downtime
+        if IS_IN_DOWNTIME:
+            downtime_duration = (current_time - LAST_SUCCESSFUL_CHECK).total_seconds()
+            TOTAL_DOWNTIME_DURATION += downtime_duration
+            
+            send_discord_notification_for_downtime(
+                status="RECOVERED", 
+                duration=downtime_duration
+            )
+        
+        # Reset tracking variables
+        CURRENT_DOWNTIME_STREAK = 0
+        IS_IN_DOWNTIME = False
+        LAST_SUCCESSFUL_CHECK = current_time
+        
+        return True
+    
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Roblox API Connectivity Issue: {e}")
+        
+        CURRENT_DOWNTIME_STREAK += 1
+        current_time = datetime.now()
+        
+        # Send comprehensive webhook on first detection or every X consecutive failures
+        if CURRENT_DOWNTIME_STREAK == 1 or CURRENT_DOWNTIME_STREAK % DOWNTIME_THRESHOLD == 0:
+            send_comprehensive_api_downtime_webhook({
+                'error_message': str(e),
+                'endpoints_checked': api_endpoints
+            })
+        
+        if CURRENT_DOWNTIME_STREAK >= DOWNTIME_THRESHOLD and not IS_IN_DOWNTIME:
+            IS_IN_DOWNTIME = True
+            LAST_SUCCESSFUL_CHECK = current_time
+            
+            send_discord_notification_for_downtime(
+                status="STARTED", 
+                reason=str(e)
+            )
+        
+        return False
+
+def send_discord_notification_for_downtime(status, duration=None, reason=None):
+    """
+    Send a Discord notification about Roblox API downtime.
+    
+    Args:
+        status (str): 'STARTED' or 'RECOVERED'
+        duration (float, optional): Downtime duration in seconds
+        reason (str, optional): Reason for downtime
+    """
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL for downtime notification")
+        return
+
+    embed = {
+        "title": f":{DEFAULT_EMOJI}: Roblox API Connectivity Alert",
+        "description": f"Roblox API Downtime Status: **{status}**",
+        "color": 0xff0000 if status == "STARTED" else 0x00ff00,
+        "fields": []
+    }
+
+    if status == "STARTED":
+        embed["fields"].append({
+            "name": "Downtime Detected",
+            "value": f"Reason: {reason or 'Unknown connectivity issue'}",
+            "inline": False
+        })
+    
+    if status == "RECOVERED" and duration is not None:
+        embed["fields"].append({
+            "name": "Downtime Duration",
+            "value": f"{duration:.2f} seconds",
+            "inline": False
+        })
+
+    payload = {"embeds": [embed]}
+
+    try:
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
+        response.raise_for_status()
+        logger.info(f"Downtime {status} notification sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending downtime notification: {e}")
+
 def start_monitoring():
     """Start monitoring transactions and Robux."""
     global monitoring_event, window, progress_var, progress_label
@@ -512,8 +704,15 @@ def main_loop():
         return
 
     try:
-        check_transactions()
-        check_robux()
+        # First, check overall API status
+        api_status = check_roblox_api_status()
+        
+        if api_status:
+            # Proceed with normal checks if API is accessible
+            check_transactions()
+            check_robux()
+        else:
+            logger.warning("Skipping transaction and Robux checks due to API connectivity issues")
         
         # Get the current check interval
         try:
