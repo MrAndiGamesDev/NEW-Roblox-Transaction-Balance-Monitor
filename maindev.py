@@ -555,7 +555,7 @@ def send_discord_notification_for_account_status(current_status, previous_status
             },
             {
                 "name": "Status",
-                "value": "🚫BANNED" if current_status.get("is_banned", False) else f"{ACTIVE_EMOJI}ACTIVE",
+                "value": "🚫 BANNED" if current_status.get("is_banned", False) else f":{ACTIVE_EMOJI}: ACTIVE",
                 "inline": False
             }
         ],
