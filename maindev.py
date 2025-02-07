@@ -70,6 +70,8 @@ COMPUTER_EMOJI = "desktop"
 
 ENDPOINT_EMOJI = "link"
 
+ACTIVE_EMOJI = "white_check_mark"
+
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
 last_api_call = 0
@@ -553,7 +555,7 @@ def send_discord_notification_for_account_status(current_status, previous_status
             },
             {
                 "name": "Status",
-                "value": "🚫 BANNED" if current_status.get("is_banned", False) else "✅ ACTIVE",
+                "value": "🚫BANNED" if current_status.get("is_banned", False) else f"{ACTIVE_EMOJI}ACTIVE",
                 "inline": False
             }
         ],
