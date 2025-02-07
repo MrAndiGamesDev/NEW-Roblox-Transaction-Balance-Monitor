@@ -130,6 +130,9 @@ def save_config_to_file(config):
     
     safe_file_write(CONFIG_FILE, sanitized_config)
 
+# Add a list of valid check types for validation
+VALID_CHECK_TYPES = ["Day", "Week", "Month", "Year"]
+
 # Default config loaded
 config = {
     "DISCORD_WEBHOOK_URL": "",
@@ -137,7 +140,7 @@ config = {
     "DISCORD_EMOJI_ID": "",
     "DISCORD_EMOJI_NAME": "",  
     "CHECK_INTERVAL": "60",  # Default check interval of 60 seconds
-    "TOTAL_CHECKS_TYPE": "Day"
+    "TOTAL_CHECKS_TYPE": "Day"  # Configurable time frame for transaction checks
 }
 
 icon_url = "https://raw.githubusercontent.com/MrAndiGamesDev/Roblox-Transaction-Application/refs/heads/main/Robux.png"  # Replace with actual URL
@@ -385,6 +388,8 @@ def validate_config():
         return False, "Emoji Name is required"
     if not config["CHECK_INTERVAL"]:
         return False, "Check Interval is required"
+    if config["TOTAL_CHECKS_TYPE"] not in VALID_CHECK_TYPES:
+        return False, f"Invalid TOTAL_CHECKS_TYPE. Must be one of: {', '.join(VALID_CHECK_TYPES)}"
     
     # Test Roblox cookie
     try:
