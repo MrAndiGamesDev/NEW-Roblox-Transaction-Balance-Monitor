@@ -15,6 +15,7 @@ from PIL import Image, ImageTk
 from loguru import logger
 from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
+import traceback
 
 # Global variables for GUI elements
 monitoring_event = None
@@ -46,6 +47,11 @@ IS_IN_DOWNTIME = False
 # Add a global variable to track last downtime notification time to prevent spam
 LAST_DOWNTIME_NOTIFICATION_TIME = None
 DOWNTIME_NOTIFICATION_COOLDOWN = 15 * 60  # 15 minutes cooldown between repeated notifications
+
+# Global variables for Roblox account status tracking
+LAST_ACCOUNT_STATUS = None
+LAST_ACCOUNT_STATUS_CHECK_TIME = None
+ACCOUNT_STATUS_CHECK_COOLDOWN = 15 * 60 # 15 minutes cooldown between status change notifications
 
 # Load configuration from the JSON file
 APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
@@ -475,6 +481,128 @@ def handle_auth_error():
         "5. Click Save Config and try again"
     )
 
+def get_roblox_account_status():
+    """
+    Fetch and return the current Roblox account status.
+    
+    Returns:
+        dict: A dictionary containing account status details
+    """
+    try:
+        response = rate_limited_request(
+            'GET', 
+            f"https://users.roblox.com/v1/users/{USERID}", 
+            cookies=COOKIES, 
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            account_data = response.json()
+            return {
+                "is_banned": account_data.get("isBanned", False),
+                "account_age": account_data.get("created", "Unknown"),
+                "username": account_data.get("name", "Unknown")
+            }
+        elif response.status_code == 401:
+            logger.error("Roblox security cookie has expired for account status check.")
+            return {"error": "Authentication Failed"}
+        else:
+            logger.warning(f"Failed to fetch account status. Status code: {response.status_code}")
+            return {"error": "Status Check Failed"}
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error during account status check: {str(e)}")
+        return {"error": "Network Error"}
+
+def send_discord_notification_for_account_status(current_status, previous_status=None):
+    """
+    Send a Discord notification about Roblox account status changes.
+    
+    Args:
+        current_status (dict): Current account status
+        previous_status (dict, optional): Previous account status for comparison
+    """
+    global LAST_ACCOUNT_STATUS_CHECK_TIME
+    
+    current_time = datetime.now()
+    
+    # Check cooldown
+    if (LAST_ACCOUNT_STATUS_CHECK_TIME is not None and 
+        (current_time - LAST_ACCOUNT_STATUS_CHECK_TIME).total_seconds() < ACCOUNT_STATUS_CHECK_COOLDOWN):
+        logger.info("Skipping account status notification due to cooldown")
+        return
+    
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL for account status notification")
+        return
+
+    # Construct embed for account status
+    embed = {
+        "title": f":{ALERT_EMOJI}: Roblox Account Status Update :{ALERT_EMOJI}:",
+        "color": 0xff0000 if current_status.get("is_banned", False) else 0x00ff00,
+        "fields": [
+            {
+                "name": "Username",
+                "value": current_status.get("username", "Unknown"),
+                "inline": True
+            },
+            {
+                "name": "Account Created",
+                "value": current_status.get("account_age", "Unknown"),
+                "inline": True
+            },
+            {
+                "name": "Status",
+                "value": "🚫 BANNED" if current_status.get("is_banned", False) else "✅ ACTIVE",
+                "inline": False
+            }
+        ],
+        "footer": {
+            "text": "Roblox Account Status Monitor"
+        }
+    }
+
+    # Add previous status comparison if available
+    if previous_status and previous_status != current_status:
+        embed["description"] = "Account status has changed!"
+
+    payload = {"embeds": [embed]}
+
+    try:
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
+        response.raise_for_status()
+        
+        # Update last notification time
+        LAST_ACCOUNT_STATUS_CHECK_TIME = current_time
+        
+        logger.info("Account status webhook notification sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending account status notification: {e}")
+
+def check_roblox_account_status():
+    """
+    Check and potentially notify about Roblox account status.
+    
+    Compares current status with last known status and sends notifications if changed.
+    """
+    global LAST_ACCOUNT_STATUS
+    
+    try:
+        current_status = get_roblox_account_status()
+        
+        # Check for errors in status retrieval
+        if current_status.get("error"):
+            logger.warning(f"Account status check failed: {current_status['error']}")
+            return
+        
+        # Compare with last known status
+        if LAST_ACCOUNT_STATUS is None or current_status != LAST_ACCOUNT_STATUS:
+            send_discord_notification_for_account_status(current_status, LAST_ACCOUNT_STATUS)
+            LAST_ACCOUNT_STATUS = current_status
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in account status check: {e}")
+
 def send_comprehensive_api_downtime_webhook(failure_details):
     """
     Send a comprehensive webhook notification about Roblox API downtime.
@@ -668,12 +796,41 @@ def start_monitoring():
             messagebox.showerror("Configuration Error", message)
             return
         
+        # Validate critical global variables before starting
+        if USERID is None:
+            error_msg = "Failed to retrieve authenticated user ID. Check your Roblox cookie."
+            logger.error(error_msg)
+            messagebox.showerror("Authentication Error", error_msg)
+            return
+        
+        if not DISCORD_WEBHOOK_URL:
+            error_msg = "Discord Webhook URL is not configured. Please set it in the configuration."
+            logger.error(error_msg)
+            messagebox.showerror("Configuration Error", error_msg)
+            return
+        
         # Flag to control the loop
         monitoring_event = threading.Event()
         monitoring_event.set()
         
+        # Wrap thread creation with additional error handling
+        def monitor_thread_wrapper():
+            try:
+                main_loop()
+            except Exception as e:
+                logger.exception(f"Unexpected error in monitoring thread: {e}")
+                window.after(0, lambda: messagebox.showerror("Monitoring Error", 
+                    f"An unexpected error occurred:\n{str(e)}\n\n"
+                    "Please check the logs for more details."))
+                
+                # Ensure UI is reset
+                window.after(0, lambda: progress_label.config(text="Monitoring inactive"))
+                window.after(0, lambda: progress_var.set(0))
+                window.after(0, lambda: start_button.config(state='normal'))
+                window.after(0, lambda: stop_button.config(state='disabled'))
+        
         # Run the main loop in a separate thread
-        monitoring_thread = threading.Thread(target=main_loop, daemon=True)
+        monitoring_thread = threading.Thread(target=monitor_thread_wrapper, daemon=True)
         monitoring_thread.start()
         logger.info("Monitoring started.")
         
@@ -681,12 +838,27 @@ def start_monitoring():
         start_button.config(state='disabled')
         stop_button.config(state='normal')
     except Exception as e:
-        monitoring_event.clear()
-        error_msg = f"Failed to start monitoring: {str(e)}"
-        logger.error(error_msg)
-        messagebox.showerror("Error", error_msg)
+        # Comprehensive error logging and user notification
+        error_details = f"Failed to start monitoring: {str(e)}\n\n" \
+                        f"Error Type: {type(e).__name__}\n" \
+                        f"Full Traceback: {traceback.format_exc()}"
+        
+        logger.exception(error_details)
+        
+        # Reset UI state
+        if monitoring_event:
+            monitoring_event.clear()
+        
+        messagebox.showerror(
+            "Critical Error", 
+            f"An unexpected error occurred:\n\n{error_details}\n\n"
+            "Please check the application logs and ensure all configurations are correct."
+        )
+        
         progress_label.config(text="Monitoring inactive")
         progress_var.set(0)
+        start_button.config(state='normal')
+        stop_button.config(state='disabled')
 
 def stop_monitoring():
     """Stop monitoring transactions and Robux."""
@@ -721,6 +893,7 @@ def main_loop():
             # Proceed with normal checks if API is accessible
             check_transactions()
             check_robux()
+            check_roblox_account_status()
         else:
             logger.warning("Skipping transaction and Robux checks due to API connectivity issues")
         
