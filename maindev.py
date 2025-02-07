@@ -1252,13 +1252,6 @@ async def Initialize_gui():
                 credits_window.lift()
                 return
             
-            credits_window = tk.Toplevel(window)
-            credits_window.title("Credits")
-            
-            credits_window.geometry("500x600")
-            credits_window.config(bg="#1d2636")
-            credits_window.resizable(False, False)
-            
             response = rate_limited_request('GET', icon_url)
             response.raise_for_status()  # Raise an error for failed requests
 
@@ -1266,6 +1259,13 @@ async def Initialize_gui():
             img_data = BytesIO(response.content)
             icon = Image.open(img_data)
             icon = ImageTk.PhotoImage(icon)
+
+            credits_window = tk.Toplevel(window)
+            credits_window.title("Credits")
+            
+            credits_window.geometry("500x600")
+            credits_window.config(bg="#1d2636")
+            credits_window.resizable(False, False)
 
             # Set the icon and window title
             credits_window.iconphoto(False, icon)
