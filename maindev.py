@@ -29,7 +29,7 @@ roblox_cookie_input = None
 emoji_id_input = None
 emoji_name_input = None
 timer_input = None
-roblox_transaction_balance_input = None
+roblox_transaction_balance_dropdown = None
 roblox_transaction_balance_label = None
 roblox_cookie_label = None
 log_output = None
@@ -39,7 +39,7 @@ APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
 # Default emoji
-DEFAULT_EMOJI = ":bell:"
+DEFAULT_EMOJI = "bell"
 
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
@@ -282,7 +282,7 @@ def send_discord_notification_for_transactions(changes):
         return
 
     embed = {
-        "title": f"{DEFAULT_EMOJI} Roblox Transaction Data Changed!",
+        "title": f":{DEFAULT_EMOJI}: Roblox Transaction Data Changed!",
         "description": "The transaction data has been updated",
         "fields": [{"name": key, "value": f"From <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(old)} To <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(new)}", "inline": False} for key, (old, new) in changes.items()],
         "color": 0x00ff00,
@@ -306,7 +306,7 @@ def send_discord_notification_for_robux(robux, last_robux):
         return
 
     embed = {
-        "title": f"{DEFAULT_EMOJI} Robux Balance Changed!",
+        "title": f":{DEFAULT_EMOJI}: Robux Balance Changed!",
         "description": "The Robux balance has changed",
         "fields": [
             {"name": "Before", "value": f"<:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(last_robux)}", "inline": True},
@@ -1013,7 +1013,7 @@ def show_tutorial(field_name):
 
 def save_config():
     """Save the configuration with validation and tutorials."""
-    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_input
+    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_dropdown
     global start_button, progress_label, roblox_cookie_label, save_button, window
 
     try:
@@ -1029,7 +1029,7 @@ def save_config():
         # Comprehensive check for input fields
         input_fields = [
             discord_webhook_input, roblox_cookie_input, emoji_id_input, 
-            emoji_name_input, timer_input, roblox_transaction_balance_input
+            emoji_name_input, timer_input, roblox_transaction_balance_dropdown
         ]
         
         # Check if any of the input fields are None
@@ -1049,7 +1049,7 @@ def save_config():
         interval = timer_input.get().strip()
         
         # Default to "Year" if transaction balance input is empty or not set
-        total_checks_type = roblox_transaction_balance_input.get().strip() or "Year"
+        total_checks_type = roblox_transaction_balance_dropdown.get() or "Year"
 
         # Comprehensive input validation
         validation_errors = []
@@ -1219,14 +1219,24 @@ async def Initialize_gui():
         timer_input.pack(pady=5)
 
         # Add total checks transaction/balance field
-        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks (Transaction/Balance) Like (Day Month Year)", bg="#1d2636", fg="white", font=("Arial", 10))
+        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks Time Range", bg="#1d2636", fg="white", font=("Arial", 10))
         roblox_transaction_balance_label.pack(pady=(5, 0))
 
-        global roblox_transaction_balance_input
-        roblox_transaction_balance_input = tk.Entry(left_frame, width=40)
-        roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
-        apply_styles(roblox_transaction_balance_input)
-        roblox_transaction_balance_input.pack(pady=5)
+        global roblox_transaction_balance_dropdown
+        roblox_transaction_balance_dropdown = ttk.Combobox(left_frame, width=37, state="readonly")
+        roblox_transaction_balance_dropdown['values'] = ("Day", "30 Days", "Year")
+        roblox_transaction_balance_dropdown.set(config.get("TOTAL_CHECKS_TYPE", "Day"))
+        roblox_transaction_balance_dropdown.pack(pady=5)
+
+        # Style the dropdown to match the theme
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("TCombobox", 
+            background="#1d2636", 
+            foreground="white", 
+            fieldbackground="#2e3b4e", 
+            selectbackground="#4CAF50"
+        )
 
         # Buttons
         save_button = tk.Button(left_frame, text="Save Config", command=save_config)
