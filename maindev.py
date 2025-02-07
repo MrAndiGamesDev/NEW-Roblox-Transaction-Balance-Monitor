@@ -1241,6 +1241,7 @@ async def Initialize_gui():
         )
 
         # Add credits button
+        # In the show_credits_gui function, modify the layout for center alignment
         def show_credits_gui():
             """
             Display a credits window with information about the application and its contributors.
@@ -1299,16 +1300,20 @@ async def Initialize_gui():
                 bg="#1d2636"
             )
             title_label.pack(pady=(0, 20))
-            
+
+            # Center the credit sections by using a frame
+            credit_section_frame = tk.Frame(scrollable_frame, bg="#1d2636")
+            credit_section_frame.pack(pady=10)
+
             # Credit sections
             credits_data = [
                 ("Application Developer", "MrAndiGamesDev (MrAndi Scripted)"),
                 ("Inspiration", "Komas19")
-           ]
+            ]
             
             for section, content in credits_data:
                 section_label = tk.Label(
-                    scrollable_frame, 
+                    credit_section_frame, 
                     text=section, 
                     font=("Arial", 12, "bold"), 
                     fg="#4CAF50", 
@@ -1317,24 +1322,24 @@ async def Initialize_gui():
                 section_label.pack(pady=(10, 5))
                 
                 content_label = tk.Label(
-                    scrollable_frame, 
+                    credit_section_frame, 
                     text=content, 
                     font=("Arial", 10), 
                     fg="white", 
                     bg="#1d2636"
                 )
                 content_label.pack()
-            
-            # Close button
-            close_button = tk.Button(
-                scrollable_frame, 
-                text="Close", 
-                command=credits_window.destroy, 
-                bg="#2196F3", 
-                fg="white", 
-                font=("Arial", 10, "bold")
-            )
-            close_button.pack(pady=20)
+
+        # Close button
+        close_button = tk.Button(
+            scrollable_frame, 
+            text="Close", 
+            command=credits_window.destroy, 
+            bg="#2196F3", 
+            fg="white", 
+            font=("Arial", 10, "bold")
+        )
+        close_button.pack(pady=20)
 
         credits_button = tk.Button(left_frame, text="Credits", command=show_credits_gui)
         apply_button_styles(credits_button)
