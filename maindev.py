@@ -1215,10 +1215,6 @@ async def Initialize_gui():
         apply_styles(emoji_name_input)
         emoji_name_input.pack(pady=5)
 
-        # Add timer input field
-        timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
-        timer_label.pack(pady=(5, 0))
-
         # Add total checks transaction/balance field
         roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks (Transaction/Balance) Like (Day Month Year)", bg="#1d2636", fg="white", font=("Arial", 10))
         roblox_transaction_balance_label.pack(pady=(5, 0))
@@ -1228,6 +1224,10 @@ async def Initialize_gui():
         roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
         apply_styles(roblox_transaction_balance_input)
         roblox_transaction_balance_input.pack(pady=5)
+        
+        # Add timer input field
+        timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
+        timer_label.pack(pady=(5, 0))
 
         global timer_input
         timer_input = tk.Entry(left_frame, width=40)
