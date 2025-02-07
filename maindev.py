@@ -24,6 +24,7 @@ progress_var = None
 start_button = None
 stop_button = None
 save_button = None
+roblox_transaction_balance_input = None
 discord_webhook_input = None
 roblox_cookie_input = None
 emoji_id_input = None
@@ -1218,16 +1219,21 @@ async def Initialize_gui():
         timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
         timer_label.pack(pady=(5, 0))
 
+        # Add total checks transaction/balance field
+        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks (Transaction/Balance) Like (Day Month Year)", bg="#1d2636", fg="white", font=("Arial", 10))
+        roblox_transaction_balance_label.pack(pady=(5, 0))
+
+        global roblox_transaction_balance_input
+        roblox_transaction_balance_input = tk.Entry(left_frame, width=40)
+        roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
+        apply_styles(roblox_transaction_balance_input)
+        roblox_transaction_balance_input.pack(pady=5)
+
         global timer_input
         timer_input = tk.Entry(left_frame, width=40)
         timer_input.insert(0, str(config["CHECK_INTERVAL"]))
         apply_styles(timer_input)
         timer_input.pack(pady=5)
-
-        # Add total checks transaction/balance field
-        global roblox_transaction_balance_label
-        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks Time Range", bg="#1d2636", fg="white", font=("Arial", 10))
-        roblox_transaction_balance_label.pack(pady=(5, 0))
 
         # Add credits button
         def show_credits_gui():
