@@ -29,7 +29,6 @@ roblox_cookie_input = None
 emoji_id_input = None
 emoji_name_input = None
 timer_input = None
-roblox_transaction_balance_dropdown = None
 roblox_transaction_balance_label = None
 roblox_cookie_label = None
 log_output = None
@@ -1015,7 +1014,7 @@ def show_tutorial(field_name):
 
 def save_config():
     """Save the configuration with validation and tutorials."""
-    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_dropdown
+    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_label
     global start_button, progress_label, roblox_cookie_label, save_button, window
 
     try:
@@ -1031,7 +1030,7 @@ def save_config():
         # Comprehensive check for input fields
         input_fields = [
             discord_webhook_input, roblox_cookie_input, emoji_id_input, 
-            emoji_name_input, timer_input, roblox_transaction_balance_dropdown
+            emoji_name_input, timer_input
         ]
         
         # Check if any of the input fields are None
@@ -1051,7 +1050,7 @@ def save_config():
         interval = timer_input.get().strip()
         
         # Default to "Year" if transaction balance input is empty or not set
-        total_checks_type = roblox_transaction_balance_dropdown.get() or "Year"
+        total_checks_type = "Year"
 
         # Comprehensive input validation
         validation_errors = []
@@ -1221,24 +1220,9 @@ async def Initialize_gui():
         timer_input.pack(pady=5)
 
         # Add total checks transaction/balance field
+        global roblox_transaction_balance_label
         roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks Time Range", bg="#1d2636", fg="white", font=("Arial", 10))
         roblox_transaction_balance_label.pack(pady=(5, 0))
-
-        global roblox_transaction_balance_dropdown
-        roblox_transaction_balance_dropdown = ttk.Combobox(left_frame, width=37, state="readonly")
-        roblox_transaction_balance_dropdown['values'] = ("Day", "30 Days", "Year")
-        roblox_transaction_balance_dropdown.set(config.get("TOTAL_CHECKS_TYPE", "Day"))
-        roblox_transaction_balance_dropdown.pack(pady=5)
-
-        # Style the dropdown to match the theme
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("TCombobox", 
-            background="#1d2636", 
-            foreground="white", 
-            fieldbackground="#2e3b4e", 
-            selectbackground="#4CAF50"
-        )
 
         # Add credits button
         def show_credits_gui():
