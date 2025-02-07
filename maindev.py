@@ -33,6 +33,8 @@ roblox_transaction_balance_dropdown = None
 roblox_transaction_balance_label = None
 roblox_cookie_label = None
 log_output = None
+credits_window = None
+credits_button = None
 
 # Load configuration from the JSON file
 APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
@@ -1237,6 +1239,94 @@ async def Initialize_gui():
             fieldbackground="#2e3b4e", 
             selectbackground="#4CAF50"
         )
+
+        # Add credits button
+        def show_credits_gui():
+            """
+            Display a credits window with information about the application and its contributors.
+            """
+            global credits_window
+            
+            # Prevent multiple credit windows
+            if hasattr(globals(), 'credits_window') and credits_window is not None and credits_window.winfo_exists():
+                credits_window.lift()
+                return
+            
+            credits_window = tk.Toplevel(window)
+            credits_window.title("Credits")
+            credits_window.geometry("500x600")
+            credits_window.config(bg="#1d2636")
+            credits_window.resizable(False, False)
+            
+            # Create a frame for scrolling
+            credits_frame = tk.Frame(credits_window, bg="#1d2636")
+            credits_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+            
+            # Create a canvas with scrollbar
+            canvas = tk.Canvas(credits_frame, bg="#1d2636", highlightthickness=0)
+            scrollbar = tk.Scrollbar(credits_frame, orient=tk.VERTICAL, command=canvas.yview)
+            scrollable_frame = tk.Frame(canvas, bg="#1d2636")
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            # Credits title
+            title_label = tk.Label(
+                scrollable_frame, 
+                text="Roblox Transaction & Robux Monitoring", 
+                font=("Arial", 16, "bold"), 
+                fg="white", 
+                bg="#1d2636"
+            )
+            title_label.pack(pady=(0, 20))
+            
+            # Credit sections
+            credits_data = [
+                ("Application Developer", "MrAndiGamesDev (MrAndi Scripted)"),
+                ("Inspiration", "Komas19")
+           ]
+            
+            for section, content in credits_data:
+                section_label = tk.Label(
+                    scrollable_frame, 
+                    text=section, 
+                    font=("Arial", 12, "bold"), 
+                    fg="#4CAF50", 
+                    bg="#1d2636"
+                )
+                section_label.pack(pady=(10, 5))
+                
+                content_label = tk.Label(
+                    scrollable_frame, 
+                    text=content, 
+                    font=("Arial", 10), 
+                    fg="white", 
+                    bg="#1d2636"
+                )
+                content_label.pack()
+            
+            # Close button
+            close_button = tk.Button(
+                scrollable_frame, 
+                text="Close", 
+                command=credits_window.destroy, 
+                bg="#2196F3", 
+                fg="white", 
+                font=("Arial", 10, "bold")
+            )
+            close_button.pack(pady=20)
+
+        credits_button = tk.Button(left_frame, text="Credits", command=show_credits_gui)
+        apply_button_styles(credits_button)
+        credits_button.pack(pady=10)
 
         # Buttons
         save_button = tk.Button(left_frame, text="Save Config", command=save_config)
