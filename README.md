@@ -45,10 +45,6 @@ Python Dev Version
 ```
 powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/maindev.py').Content | python"
 ```
-Power shell Version
-```
-Invoke-Expression (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/main.ps1").Content
-```
 
 ## License
 
