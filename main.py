@@ -10,6 +10,7 @@ import random
 import io
 import tkinter as tk
 import webbrowser
+import traceback
 from io import BytesIO
 from PIL import Image, ImageTk
 from loguru import logger
@@ -24,22 +25,46 @@ progress_var = None
 start_button = None
 stop_button = None
 save_button = None
+roblox_transaction_balance_input = None
 discord_webhook_input = None
 roblox_cookie_input = None
 emoji_id_input = None
 emoji_name_input = None
 timer_input = None
-roblox_transaction_balance_input = None
 roblox_transaction_balance_label = None
 roblox_cookie_label = None
 log_output = None
+credits_window = None
+credits_button = None
+
+# Global variables for downtime tracking
+DOWNTIME_THRESHOLD = 3  # Number of consecutive failed checks before declaring downtime
+CURRENT_DOWNTIME_STREAK = 0
+TOTAL_DOWNTIME_DURATION = 0
+LAST_SUCCESSFUL_CHECK = None
+IS_IN_DOWNTIME = False
+
+# Add a global variable to track last downtime notification time to prevent spam
+LAST_DOWNTIME_NOTIFICATION_TIME = None
+DOWNTIME_NOTIFICATION_COOLDOWN = 15 * 60  # 15 minutes cooldown between repeated notifications
+
+# Global variables for Roblox account status tracking
+LAST_ACCOUNT_STATUS = None
+LAST_ACCOUNT_STATUS_CHECK_TIME = None
+ACCOUNT_STATUS_CHECK_COOLDOWN = 15 * 60 # 15 minutes cooldown between status change notifications
 
 # Load configuration from the JSON file
 APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
 # Default emoji
-DEFAULT_EMOJI = ":bell:"
+DEFAULT_EMOJI = "bell"
+ALERT_EMOJI = "warning"
+DETECTION_EMOJI = "exclamation"
+CLOCK_EMOJI = "hourglass"
+COMPUTER_EMOJI = "desktop"
+ENDPOINT_EMOJI = "link"
+ACTIVE_EMOJI = "white_check_mark"
 
 # Rate limiting for API calls
 RATE_LIMIT = 1.0  # seconds between API calls
@@ -129,6 +154,9 @@ def save_config_to_file(config):
     
     safe_file_write(CONFIG_FILE, sanitized_config)
 
+# Add a list of valid check types for validation
+VALID_CHECK_TYPES = ["Day", "Week", "Month", "Year"]
+
 # Default config loaded
 config = {
     "DISCORD_WEBHOOK_URL": "",
@@ -136,7 +164,7 @@ config = {
     "DISCORD_EMOJI_ID": "",
     "DISCORD_EMOJI_NAME": "",  
     "CHECK_INTERVAL": "60",  # Default check interval of 60 seconds
-    "TOTAL_CHECKS_TYPE": "Day"
+    "TOTAL_CHECKS_TYPE": "Day"  # Configurable time frame for transaction checks
 }
 
 icon_url = "https://raw.githubusercontent.com/MrAndiGamesDev/Roblox-Transaction-Application/refs/heads/main/Robux.png"  # Replace with actual URL
@@ -164,14 +192,10 @@ else:
 
 # Discord webhook URL
 DISCORD_WEBHOOK_URL = config["DISCORD_WEBHOOK_URL"]
-
 # API endpoint and authentication
 ALIVE_TIME = 3600
-
 MONITORING_ROBUX = False
-
 DATE_TYPE = config["TOTAL_CHECKS_TYPE"]
-
 EMOJI_NAME = config.get("DISCORD_EMOJI_NAME", "Robux")
 EMOJI_ID = config["DISCORD_EMOJI_ID"]
 
@@ -282,7 +306,7 @@ def send_discord_notification_for_transactions(changes):
         return
 
     embed = {
-        "title": f"{DEFAULT_EMOJI} Roblox Transaction Data Changed!",
+        "title": f":{DEFAULT_EMOJI}: Roblox Transaction Data Changed!",
         "description": "The transaction data has been updated",
         "fields": [{"name": key, "value": f"From <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(old)} To <:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(new)}", "inline": False} for key, (old, new) in changes.items()],
         "color": 0x00ff00,
@@ -306,7 +330,7 @@ def send_discord_notification_for_robux(robux, last_robux):
         return
 
     embed = {
-        "title": f"{DEFAULT_EMOJI} Robux Balance Changed!",
+        "title": f":{DEFAULT_EMOJI}: Robux Balance Changed!",
         "description": "The Robux balance has changed",
         "fields": [
             {"name": "Before", "value": f"<:{EMOJI_NAME}:{EMOJI_ID}> {abbreviate_number(last_robux)}", "inline": True},
@@ -384,6 +408,8 @@ def validate_config():
         return False, "Emoji Name is required"
     if not config["CHECK_INTERVAL"]:
         return False, "Check Interval is required"
+    if config["TOTAL_CHECKS_TYPE"] not in VALID_CHECK_TYPES:
+        return False, f"Invalid TOTAL_CHECKS_TYPE. Must be one of: {', '.join(VALID_CHECK_TYPES)}"
     
     # Test Roblox cookie
     try:
@@ -447,6 +473,309 @@ def handle_auth_error():
         "5. Click Save Config and try again"
     )
 
+def get_roblox_account_status():
+    """
+    Fetch and return the current Roblox account status.
+    
+    Returns:
+        dict: A dictionary containing account status details
+    """
+    try:
+        response = rate_limited_request(
+            'GET', 
+            f"https://users.roblox.com/v1/users/{USERID}", 
+            cookies=COOKIES, 
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            account_data = response.json()
+            return {
+                "is_banned": account_data.get("isBanned", False),
+                "account_age": account_data.get("created", "Unknown"),
+                "username": account_data.get("name", "Unknown")
+            }
+        elif response.status_code == 401:
+            logger.error("Roblox security cookie has expired for account status check.")
+            return {"error": "Authentication Failed"}
+        else:
+            logger.warning(f"Failed to fetch account status. Status code: {response.status_code}")
+            return {"error": "Status Check Failed"}
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error during account status check: {str(e)}")
+        return {"error": "Network Error"}
+
+def send_discord_notification_for_account_status(current_status, previous_status=None):
+    """
+    Send a Discord notification about Roblox account status changes.
+    
+    Args:
+        current_status (dict): Current account status
+        previous_status (dict, optional): Previous account status for comparison
+    """
+    global LAST_ACCOUNT_STATUS_CHECK_TIME
+    
+    current_time = datetime.now()
+    
+    # Check cooldown
+    if (LAST_ACCOUNT_STATUS_CHECK_TIME is not None and 
+        (current_time - LAST_ACCOUNT_STATUS_CHECK_TIME).total_seconds() < ACCOUNT_STATUS_CHECK_COOLDOWN):
+        logger.info("Skipping account status notification due to cooldown")
+        return
+    
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL for account status notification")
+        return
+
+    # Construct embed for account status
+    embed = {
+        "title": f":{ALERT_EMOJI}: Roblox Account Status Update :{ALERT_EMOJI}:",
+        "color": 0xff0000 if current_status.get("is_banned", False) else 0x00ff00,
+        "fields": [
+            {
+                "name": "Username",
+                "value": current_status.get("username", "Unknown"),
+                "inline": True
+            },
+            {
+                "name": "Account Created",
+                "value": current_status.get("account_age", "Unknown"),
+                "inline": True
+            },
+            {
+                "name": "Status",
+                "value": "🚫 BANNED" if current_status.get("is_banned", False) else f":{ACTIVE_EMOJI}: ACTIVE",
+                "inline": False
+            }
+        ],
+        "footer": {
+            "text": "Roblox Account Status Monitor"
+        }
+    }
+
+    # Add previous status comparison if available
+    if previous_status and previous_status != current_status:
+        embed["description"] = "Account status has changed!"
+
+    payload = {"embeds": [embed]}
+
+    try:
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
+        response.raise_for_status()
+        
+        # Update last notification time
+        LAST_ACCOUNT_STATUS_CHECK_TIME = current_time
+        
+        logger.info("Account status webhook notification sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending account status notification: {e}")
+
+def check_roblox_account_status():
+    """
+    Check and potentially notify about Roblox account status.
+    
+    Compares current status with last known status and sends notifications if changed.
+    """
+    global LAST_ACCOUNT_STATUS
+    
+    try:
+        current_status = get_roblox_account_status()
+        
+        # Check for errors in status retrieval
+        if current_status.get("error"):
+            logger.warning(f"Account status check failed: {current_status['error']}")
+            return
+        
+        # Compare with last known status
+        if LAST_ACCOUNT_STATUS is None or current_status != LAST_ACCOUNT_STATUS:
+            send_discord_notification_for_account_status(current_status, LAST_ACCOUNT_STATUS)
+            LAST_ACCOUNT_STATUS = current_status
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in account status check: {e}")
+
+def send_comprehensive_api_downtime_webhook(failure_details):
+    """
+    Send a comprehensive webhook notification about Roblox API downtime.
+    
+    Args:
+        failure_details (dict): Detailed information about the API failure
+    """
+    global LAST_DOWNTIME_NOTIFICATION_TIME
+    
+    current_time = datetime.now()
+    
+    # Check if we're within the cooldown period
+    if (LAST_DOWNTIME_NOTIFICATION_TIME is not None and 
+        (current_time - LAST_DOWNTIME_NOTIFICATION_TIME).total_seconds() < DOWNTIME_NOTIFICATION_COOLDOWN):
+        logger.info("Skipping downtime notification due to cooldown period")
+        return
+    
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL for downtime notification")
+        return
+
+    # Construct a detailed embed with system and network information
+    embed = {
+        "title": f":{ALERT_EMOJI}: Roblox API Connectivity Failure :{ALERT_EMOJI}",
+        "description": "Critical API Monitoring Alert: Roblox Services Unreachable",
+        "color": 0xff0000,  # Red color for critical alert
+        "fields": [
+            {
+                "name": f":{DETECTION_EMOJI}: Failure Details",
+                "value": failure_details.get('error_message', 'Unknown connectivity issue'),
+                "inline": False
+            },
+            {
+                "name": f":{CLOCK_EMOJI}: Timestamp",
+                "value": current_time.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "inline": True
+            },
+            {
+                "name": f":{COMPUTER_EMOJI}: System Info",
+                "value": f"OS: {platform.system()} {platform.release()}\n"
+                         f"Python: {platform.python_version()}",
+                "inline": True
+            },
+            {
+                "name": f":{ENDPOINT_EMOJI}: Endpoints Checked",
+                "value": "\n".join(failure_details.get('endpoints_checked', [])),
+                "inline": False
+            }
+        ],
+        "footer": {
+            "text": "Roblox Transaction Monitor - Automatic API Health Check"
+        }
+    }
+
+    payload = {"embeds": [embed]}
+
+    try:
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
+        response.raise_for_status()
+        
+        # Update last notification time
+        LAST_DOWNTIME_NOTIFICATION_TIME = current_time
+        
+        logger.info("Comprehensive API downtime webhook notification sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending comprehensive downtime notification: {e}")
+
+def check_roblox_api_status():
+    """
+    Check the overall Roblox API connectivity and status.
+    
+    Returns:
+        bool: True if API is accessible, False otherwise
+    """
+    global CURRENT_DOWNTIME_STREAK, TOTAL_DOWNTIME_DURATION, LAST_SUCCESSFUL_CHECK, IS_IN_DOWNTIME
+    
+    try:
+        # Check multiple critical Roblox API endpoints
+        api_endpoints = [
+            "https://users.roblox.com/v1/users/authenticated",
+            f"{ROBLOX_ECONOMY_API}/v2/users/{USERID}/transaction-totals?timeFrame={DATE_TYPE}&transactionType=summary",
+            f"{ROBLOX_ECONOMY_API}/v1/users/{USERID}/currency"
+        ]
+        
+        failed_endpoints = []
+        for endpoint in api_endpoints:
+            try:
+                response = rate_limited_request('GET', endpoint, cookies=COOKIES, timeout=10)
+                
+                if response.status_code != 200:
+                    failed_endpoints.append(f"{endpoint} - Status: {response.status_code}")
+                    raise requests.exceptions.RequestException(f"Non-200 status code from {endpoint}")
+            except requests.exceptions.RequestException as endpoint_error:
+                failed_endpoints.append(f"{endpoint} - Error: {str(endpoint_error)}")
+        
+        current_time = datetime.now()
+        
+        # Reset downtime tracking if previously in downtime
+        if IS_IN_DOWNTIME:
+            downtime_duration = (current_time - LAST_SUCCESSFUL_CHECK).total_seconds()
+            TOTAL_DOWNTIME_DURATION += downtime_duration
+            
+            send_discord_notification_for_downtime(
+                status="RECOVERED", 
+                duration=downtime_duration
+            )
+        
+        # Reset tracking variables
+        CURRENT_DOWNTIME_STREAK = 0
+        IS_IN_DOWNTIME = False
+        LAST_SUCCESSFUL_CHECK = current_time
+        
+        return True
+    
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Roblox API Connectivity Issue: {e}")
+        
+        CURRENT_DOWNTIME_STREAK += 1
+        current_time = datetime.now()
+        
+        # Send comprehensive webhook on first detection or every X consecutive failures
+        if CURRENT_DOWNTIME_STREAK == 1 or CURRENT_DOWNTIME_STREAK % DOWNTIME_THRESHOLD == 0:
+            send_comprehensive_api_downtime_webhook({
+                'error_message': str(e),
+                'endpoints_checked': api_endpoints
+            })
+        
+        if CURRENT_DOWNTIME_STREAK >= DOWNTIME_THRESHOLD and not IS_IN_DOWNTIME:
+            IS_IN_DOWNTIME = True
+            LAST_SUCCESSFUL_CHECK = current_time
+            
+            send_discord_notification_for_downtime(
+                status="STARTED", 
+                reason=str(e)
+            )
+        
+        return False
+
+def send_discord_notification_for_downtime(status, duration=None, reason=None):
+    """
+    Send a Discord notification about Roblox API downtime.
+    
+    Args:
+        status (str): 'STARTED' or 'RECOVERED'
+        duration (float, optional): Downtime duration in seconds
+        reason (str, optional): Reason for downtime
+    """
+    if not validate_webhook_url(DISCORD_WEBHOOK_URL):
+        logger.error("Invalid Discord webhook URL for downtime notification")
+        return
+
+    embed = {
+        "title": f":{DEFAULT_EMOJI}: Roblox API Connectivity Alert",
+        "description": f"Roblox API Downtime Status: **{status}**",
+        "color": 0xff0000 if status == "STARTED" else 0x00ff00,
+        "fields": []
+    }
+
+    if status == "STARTED":
+        embed["fields"].append({
+            "name": "Downtime Detected",
+            "value": f"Reason: {reason or 'Unknown connectivity issue'}",
+            "inline": False
+        })
+    
+    if status == "RECOVERED" and duration is not None:
+        embed["fields"].append({
+            "name": "Downtime Duration",
+            "value": f"{duration:.2f} seconds",
+            "inline": False
+        })
+
+    payload = {"embeds": [embed]}
+
+    try:
+        response = rate_limited_request('POST', DISCORD_WEBHOOK_URL, json=payload)
+        response.raise_for_status()
+        logger.info(f"Downtime {status} notification sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending downtime notification: {e}")
+
 def start_monitoring():
     """Start monitoring transactions and Robux."""
     global monitoring_event, window, progress_var, progress_label
@@ -459,12 +788,41 @@ def start_monitoring():
             messagebox.showerror("Configuration Error", message)
             return
         
+        # Validate critical global variables before starting
+        if USERID is None:
+            error_msg = "Failed to retrieve authenticated user ID. Check your Roblox cookie."
+            logger.error(error_msg)
+            messagebox.showerror("Authentication Error", error_msg)
+            return
+        
+        if not DISCORD_WEBHOOK_URL:
+            error_msg = "Discord Webhook URL is not configured. Please set it in the configuration."
+            logger.error(error_msg)
+            messagebox.showerror("Configuration Error", error_msg)
+            return
+        
         # Flag to control the loop
         monitoring_event = threading.Event()
         monitoring_event.set()
         
+        # Wrap thread creation with additional error handling
+        def monitor_thread_wrapper():
+            try:
+                main_loop()
+            except Exception as e:
+                logger.exception(f"Unexpected error in monitoring thread: {e}")
+                window.after(0, lambda: messagebox.showerror("Monitoring Error", 
+                    f"An unexpected error occurred:\n{str(e)}\n\n"
+                    "Please check the logs for more details."))
+                
+                # Ensure UI is reset
+                window.after(0, lambda: progress_label.config(text="Monitoring inactive"))
+                window.after(0, lambda: progress_var.set(0))
+                window.after(0, lambda: start_button.config(state='normal'))
+                window.after(0, lambda: stop_button.config(state='disabled'))
+        
         # Run the main loop in a separate thread
-        monitoring_thread = threading.Thread(target=main_loop, daemon=True)
+        monitoring_thread = threading.Thread(target=monitor_thread_wrapper, daemon=True)
         monitoring_thread.start()
         logger.info("Monitoring started.")
         
@@ -472,12 +830,27 @@ def start_monitoring():
         start_button.config(state='disabled')
         stop_button.config(state='normal')
     except Exception as e:
-        monitoring_event.clear()
-        error_msg = f"Failed to start monitoring: {str(e)}"
-        logger.error(error_msg)
-        messagebox.showerror("Error", error_msg)
+        # Comprehensive error logging and user notification
+        error_details = f"Failed to start monitoring: {str(e)}\n\n" \
+                        f"Error Type: {type(e).__name__}\n" \
+                        f"Full Traceback: {traceback.format_exc()}"
+        
+        logger.exception(error_details)
+        
+        # Reset UI state
+        if monitoring_event:
+            monitoring_event.clear()
+        
+        messagebox.showerror(
+            "Critical Error", 
+            f"An unexpected error occurred:\n\n{error_details}\n\n"
+            "Please check the application logs and ensure all configurations are correct."
+        )
+        
         progress_label.config(text="Monitoring inactive")
         progress_var.set(0)
+        start_button.config(state='normal')
+        stop_button.config(state='disabled')
 
 def stop_monitoring():
     """Stop monitoring transactions and Robux."""
@@ -505,8 +878,16 @@ def main_loop():
         return
 
     try:
-        check_transactions()
-        check_robux()
+        # First, check overall API status
+        api_status = check_roblox_api_status()
+        
+        if api_status:
+            # Proceed with normal checks if API is accessible
+            check_transactions()
+            check_robux()
+            check_roblox_account_status()
+        else:
+            logger.warning("Skipping transaction and Robux checks due to API connectivity issues")
         
         # Get the current check interval
         try:
@@ -1013,7 +1394,7 @@ def show_tutorial(field_name):
 
 def save_config():
     """Save the configuration with validation and tutorials."""
-    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_input
+    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_label
     global start_button, progress_label, roblox_cookie_label, save_button, window
 
     try:
@@ -1029,7 +1410,7 @@ def save_config():
         # Comprehensive check for input fields
         input_fields = [
             discord_webhook_input, roblox_cookie_input, emoji_id_input, 
-            emoji_name_input, timer_input, roblox_transaction_balance_input
+            emoji_name_input, timer_input
         ]
         
         # Check if any of the input fields are None
@@ -1049,7 +1430,7 @@ def save_config():
         interval = timer_input.get().strip()
         
         # Default to "Year" if transaction balance input is empty or not set
-        total_checks_type = roblox_transaction_balance_input.get().strip() or "Year"
+        total_checks_type = "Year"
 
         # Comprehensive input validation
         validation_errors = []
@@ -1208,6 +1589,16 @@ async def Initialize_gui():
         apply_styles(emoji_name_input)
         emoji_name_input.pack(pady=5)
 
+        # Add total checks transaction/balance field
+        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks (Transaction/Balance) Like (Day Month Year)", bg="#1d2636", fg="white", font=("Arial", 10))
+        roblox_transaction_balance_label.pack(pady=(5, 0))
+
+        global roblox_transaction_balance_input
+        roblox_transaction_balance_input = tk.Entry(left_frame, width=40)
+        roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
+        apply_styles(roblox_transaction_balance_input)
+        roblox_transaction_balance_input.pack(pady=5)
+        
         # Add timer input field
         timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
         timer_label.pack(pady=(5, 0))
@@ -1218,15 +1609,109 @@ async def Initialize_gui():
         apply_styles(timer_input)
         timer_input.pack(pady=5)
 
-        # Add total checks transaction/balance field
-        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks (Transaction/Balance) Like (Day Month Year)", bg="#1d2636", fg="white", font=("Arial", 10))
-        roblox_transaction_balance_label.pack(pady=(5, 0))
+        # Add credits button
+        def show_credits_gui():
+            """
+            Display a credits window with information about the application and its contributors.
+            """
+            global credits_window
+            
+            # Prevent multiple credit windows
+            if hasattr(globals(), 'credits_window') and credits_window is not None and credits_window.winfo_exists():
+                credits_window.lift()
+                return
+            
+            response = rate_limited_request('GET', icon_url)
+            response.raise_for_status()  # Raise an error for failed requests
 
-        global roblox_transaction_balance_input
-        roblox_transaction_balance_input = tk.Entry(left_frame, width=40)
-        roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
-        apply_styles(roblox_transaction_balance_input)
-        roblox_transaction_balance_input.pack(pady=5)
+            # Load the icon image
+            img_data = BytesIO(response.content)
+            icon = Image.open(img_data)
+            icon = ImageTk.PhotoImage(icon)
+
+            credits_window = tk.Toplevel(window)
+            credits_window.title("Credits")
+            
+            credits_window.geometry("500x600")
+            credits_window.config(bg="#1d2636")
+            credits_window.resizable(False, False)
+
+            # Set the icon and window title
+            credits_window.iconphoto(False, icon)
+
+            # Create a frame for scrolling
+            credits_frame = tk.Frame(credits_window, bg="#1d2636")
+            credits_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+            
+            # Create a canvas with scrollbar
+            canvas = tk.Canvas(credits_frame, bg="#1d2636", highlightthickness=0)
+            scrollbar = tk.Scrollbar(credits_frame, orient=tk.VERTICAL, command=canvas.yview)
+            scrollable_frame = tk.Frame(canvas, bg="#1d2636")
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            # Credits title
+            title_label = tk.Label(
+                scrollable_frame, 
+                text="Credits List", 
+                font=("Arial", 16, "bold"), 
+                fg="white", 
+                bg="#1d2636"
+            )
+            title_label.pack(pady=(0, 20))
+
+            # Center the credit sections by using a frame
+            credit_section_frame = tk.Frame(scrollable_frame, bg="#1d2636")
+            credit_section_frame.pack(pady=10)
+
+            # Credit sections
+            credits_data = [
+                ("Application Developer", "MrAndiGamesDev (MrAndi Scripted)"),
+                ("Inspiration", "Komas19")
+            ]
+            
+            for section, content in credits_data:
+                section_label = tk.Label(
+                    credit_section_frame, 
+                    text=section, 
+                    font=("Arial", 12, "bold"), 
+                    fg="#4CAF50", 
+                    bg="#1d2636"
+                )
+                section_label.pack(pady=(10, 5))
+                
+                content_label = tk.Label(
+                    credit_section_frame, 
+                    text=content, 
+                    font=("Arial", 10), 
+                    fg="white", 
+                    bg="#1d2636"
+                )
+                content_label.pack()
+
+            # Close button
+            close_button = tk.Button(
+                scrollable_frame, 
+                text="Close", 
+                command=credits_window.destroy, 
+                bg="#2196F3", 
+                fg="white", 
+                font=("Arial", 10, "bold")
+            )
+            close_button.pack(pady=20)
+
+        credits_button = tk.Button(left_frame, text="Credits", command=show_credits_gui)
+        apply_button_styles(credits_button)
+        credits_button.pack(pady=10)
 
         # Buttons
         save_button = tk.Button(left_frame, text="Save Config", command=save_config)
@@ -1353,8 +1838,6 @@ def check_operating_system():
     if os_check_result:
         # Run the GUI initialization
         asyncio.run(Initialize_gui())
-    else:
-        logger.error("Unsupported operating system. Application cannot start.")
 
 if __name__ == "__main__":
     check_operating_system()

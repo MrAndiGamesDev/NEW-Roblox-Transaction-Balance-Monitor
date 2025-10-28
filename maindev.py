@@ -3,19 +3,22 @@ import time
 import json
 import os
 import threading
-import asyncio
 import sys
 import platform
-import random
 import io
-import tkinter as tk
 import webbrowser
-from io import BytesIO
-from PIL import Image, ImageTk
-from loguru import logger
-from tkinter import messagebox, scrolledtext, ttk
-from datetime import datetime
 import traceback
+from io import BytesIO
+from PIL import Image, ImageQt
+from loguru import logger
+from datetime import datetime
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QLineEdit, QPushButton, QTextEdit, QProgressBar, QMessageBox,
+    QFrame, QScrollArea, QDialog, QDialogButtonBox, QStyle
+)
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
+from PySide6.QtGui import QPixmap, QIcon, QFont, QPalette, QColor, QTextCursor, QDesktopServices
 
 # Global variables for GUI elements
 monitoring_event = None
@@ -59,17 +62,11 @@ CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
 # Default emoji
 DEFAULT_EMOJI = "bell"
-
 ALERT_EMOJI = "warning"
-
 DETECTION_EMOJI = "exclamation"
-
 CLOCK_EMOJI = "hourglass"
-
 COMPUTER_EMOJI = "desktop"
-
 ENDPOINT_EMOJI = "link"
-
 ACTIVE_EMOJI = "white_check_mark"
 
 # Rate limiting for API calls
@@ -198,14 +195,10 @@ else:
 
 # Discord webhook URL
 DISCORD_WEBHOOK_URL = config["DISCORD_WEBHOOK_URL"]
-
 # API endpoint and authentication
 ALIVE_TIME = 3600
-
 MONITORING_ROBUX = False
-
 DATE_TYPE = config["TOTAL_CHECKS_TYPE"]
-
 EMOJI_NAME = config.get("DISCORD_EMOJI_NAME", "Robux")
 EMOJI_ID = config["DISCORD_EMOJI_ID"]
 
@@ -461,19 +454,20 @@ def handle_auth_error():
     global monitoring_event, progress_label, progress_var, start_button, stop_button, roblox_cookie_input, roblox_cookie_label, save_button
     
     monitoring_event.clear()  # Stop monitoring
-    progress_label.config(text="Authentication Error - Update Cookie")
-    progress_var.set(0)
-    start_button.config(state='disabled')
-    stop_button.config(state='disabled')
+    progress_label.setText("Authentication Error - Update Cookie")
+    progress_var.setValue(0)
+    start_button.setEnabled(False)
+    stop_button.setEnabled(False)
     
     # Highlight the cookie input field
-    roblox_cookie_input.config(bg="#4a1919")  # Dark red background
-    roblox_cookie_label.config(fg="#ff6b6b")  # Light red text
+    roblox_cookie_input.setStyleSheet("background-color: #4a1919; color: white;")
+    roblox_cookie_label.setStyleSheet("color: #ff6b6b;")
     
     # Enable save button
-    save_button.config(state='normal')
+    save_button.setEnabled(True)
     
-    messagebox.showerror(
+    QMessageBox.critical(
+        window, 
         "Authentication Error", 
         "Your Roblox security cookie has expired.\n\n"
         "1. Go to Roblox.com and log in\n"
@@ -628,7 +622,7 @@ def send_comprehensive_api_downtime_webhook(failure_details):
 
     # Construct a detailed embed with system and network information
     embed = {
-        "title": f":{ALERT_EMOJI}: Roblox API Connectivity Failure :{ALERT_EMOJI}",
+        "title": f":{ALERT_EMOJI}: Roblox API Connectivity Failure :{ALERT_EMOJI}:",
         "description": "Critical API Monitoring Alert: Roblox Services Unreachable",
         "color": 0xff0000,  # Red color for critical alert
         "fields": [
@@ -795,20 +789,20 @@ def start_monitoring():
         is_valid, message = validate_config()
         if not is_valid:
             logger.error(f"Invalid configuration: {message}")
-            messagebox.showerror("Configuration Error", message)
+            QMessageBox.critical(window, "Configuration Error", message)
             return
         
         # Validate critical global variables before starting
         if USERID is None:
             error_msg = "Failed to retrieve authenticated user ID. Check your Roblox cookie."
             logger.error(error_msg)
-            messagebox.showerror("Authentication Error", error_msg)
+            QMessageBox.critical(window, "Authentication Error", error_msg)
             return
         
         if not DISCORD_WEBHOOK_URL:
             error_msg = "Discord Webhook URL is not configured. Please set it in the configuration."
             logger.error(error_msg)
-            messagebox.showerror("Configuration Error", error_msg)
+            QMessageBox.critical(window, "Configuration Error", error_msg)
             return
         
         # Flag to control the loop
@@ -821,15 +815,16 @@ def start_monitoring():
                 main_loop()
             except Exception as e:
                 logger.exception(f"Unexpected error in monitoring thread: {e}")
-                window.after(0, lambda: messagebox.showerror("Monitoring Error", 
+                window.show_error_signal.emit(
+                    "Monitoring Error", 
                     f"An unexpected error occurred:\n{str(e)}\n\n"
-                    "Please check the logs for more details."))
+                    "Please check the logs for more details."
+                )
                 
                 # Ensure UI is reset
-                window.after(0, lambda: progress_label.config(text="Monitoring inactive"))
-                window.after(0, lambda: progress_var.set(0))
-                window.after(0, lambda: start_button.config(state='normal'))
-                window.after(0, lambda: stop_button.config(state='disabled'))
+                window.update_progress_signal.emit(0)
+                window.update_status_signal.emit("Monitoring inactive")
+                window.update_buttons_signal.emit(False, True)
         
         # Run the main loop in a separate thread
         monitoring_thread = threading.Thread(target=monitor_thread_wrapper, daemon=True)
@@ -837,8 +832,8 @@ def start_monitoring():
         logger.info("Monitoring started.")
         
         # Enable/disable buttons
-        start_button.config(state='disabled')
-        stop_button.config(state='normal')
+        start_button.setEnabled(False)
+        stop_button.setEnabled(True)
     except Exception as e:
         # Comprehensive error logging and user notification
         error_details = f"Failed to start monitoring: {str(e)}\n\n" \
@@ -851,16 +846,17 @@ def start_monitoring():
         if monitoring_event:
             monitoring_event.clear()
         
-        messagebox.showerror(
+        QMessageBox.critical(
+            window, 
             "Critical Error", 
             f"An unexpected error occurred:\n\n{error_details}\n\n"
             "Please check the application logs and ensure all configurations are correct."
         )
         
-        progress_label.config(text="Monitoring inactive")
-        progress_var.set(0)
-        start_button.config(state='normal')
-        stop_button.config(state='disabled')
+        progress_label.setText("Monitoring inactive")
+        progress_var.setValue(0)
+        start_button.setEnabled(True)
+        stop_button.setEnabled(False)
 
 def stop_monitoring():
     """Stop monitoring transactions and Robux."""
@@ -868,17 +864,17 @@ def stop_monitoring():
     
     try:
         monitoring_event.clear()
-        progress_var.set(0)
-        progress_label.config(text="Monitoring inactive")
+        progress_var.setValue(0)
+        progress_label.setText("Monitoring inactive")
         logger.info("Monitoring stopped.")
         
         # Enable/disable buttons
-        start_button.config(state='normal')
-        stop_button.config(state='disabled')
+        start_button.setEnabled(True)
+        stop_button.setEnabled(False)
     except Exception as e:
         error_msg = f"Error stopping monitoring: {str(e)}"
         logger.error(error_msg)
-        messagebox.showerror("Error", error_msg)
+        QMessageBox.critical(window, "Error", error_msg)
 
 def main_loop():
     """Start the transaction and Robux balance checks on intervals."""
@@ -901,17 +897,15 @@ def main_loop():
         
         # Get the current check interval
         try:
-            check_interval = int(timer_input.get())
+            check_interval = int(timer_input.text())
             if check_interval < 10:  # Minimum 10 seconds
                 check_interval = 10
-                window.after(0, lambda: timer_input.delete(0, tk.END))
-                window.after(0, lambda: timer_input.insert(0, "10"))
+                timer_input.setText("10")
         except ValueError:
             check_interval = 60  # Default check interval
-            window.after(0, lambda: timer_input.delete(0, tk.END))
-            window.after(0, lambda: timer_input.insert(0, str(60)))
+            timer_input.setText("60")
         
-        # Update progress bar using after method
+        # Update progress bar using QTimer
         def update_progress(current_second):
             if not monitoring_event.is_set():
                 return
@@ -919,525 +913,311 @@ def main_loop():
             progress = (current_second + 1) / check_interval * 100
             time_left = check_interval - current_second - 1
             
-            window.after(0, lambda: progress_var.set(progress))
-            window.after(0, lambda: progress_label.config(text=f"Next check in {time_left} seconds"))
+            window.update_progress_signal.emit(progress)
+            window.update_status_signal.emit(f"Next check in {time_left} seconds")
             
             if current_second + 1 < check_interval and monitoring_event.is_set():
-                window.after(1000, lambda: update_progress(current_second + 1))
+                QTimer.singleShot(1000, lambda: update_progress(current_second + 1))
             elif monitoring_event.is_set():
-                window.after(0, main_loop)
+                main_loop()
         
         update_progress(0)
         
     except Exception as e:
         logger.error(f"Error in monitoring loop: {str(e)}")
         if monitoring_event.is_set():
-            window.after(5000, main_loop)  # Retry after 5 seconds
+            QTimer.singleShot(5000, main_loop)  # Retry after 5 seconds
 
-def apply_styles(widget):
-    """Apply common styles to widgets.""" 
-    widget.config(
-        font=("Arial", 12),
-        bg="#2e3b4e",
-        fg="white",
-        relief="flat",
-        bd=2,
-        highlightthickness=0,
-        insertbackground='white'  # Make cursor white
-    )
-    
-    # If it's an Entry widget, bind focus events
-    if isinstance(widget, tk.Entry):
-        widget.config(selectbackground="#4a76a8", selectforeground="white")  # Selection colors
+class MainWindow(QMainWindow):
+    show_error_signal = Signal(str, str)
+    update_progress_signal = Signal(float)
+    update_status_signal = Signal(str)
+    update_buttons_signal = Signal(bool, bool)
 
-def apply_button_styles(button):
-    """Apply button styles with hover effect.""" 
-    button.config(font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", activebackground="#45a049", relief="flat", bd=2)
-    
-    def on_enter(event):
-        button.config(bg="#45a049")  # Lighter green on hover
-    
-    def on_leave(event):
-        button.config(bg="#4CAF50")  # Original green color
-    
-    button.bind("<Enter>", on_enter)
-    button.bind("<Leave>", on_leave)
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+        self.connect_signals()
 
-def on_focus_in(entry, placeholder):
-    """Remove placeholder text when the entry field is focused.""" 
-    if entry.get() == placeholder:
-        entry.delete(0, tk.END)
-    entry.config(fg="white")  # Always set to white when focused
+    def connect_signals(self):
+        self.show_error_signal.connect(self.show_error_dialog)
+        self.update_progress_signal.connect(self.update_progress)
+        self.update_status_signal.connect(self.update_status)
+        self.update_buttons_signal.connect(self.update_buttons)
 
-def on_focus_out(entry, placeholder):
-    """Set placeholder text when the entry field is not focused and empty.""" 
-    if not entry.get():
-        entry.insert(0, placeholder)
-        entry.config(fg="grey")
-    else:
-        entry.config(fg="white")  # Keep text white if there's content
+    def init_ui(self):
+        self.setWindowTitle("Roblox Transaction & Robux Monitoring")
+        self.setFixedSize(700, 700)
+        self.setStyleSheet("background-color: #1d2636;")
+
+        # Load icon
+        try:
+            response = rate_limited_request('GET', icon_url)
+            response.raise_for_status()
+            img_data = BytesIO(response.content)
+            icon = Image.open(img_data)
+            qt_icon = QIcon(QPixmap.fromImage(ImageQt.ImageQt(icon)))
+            self.setWindowIcon(qt_icon)
+        except Exception as e:
+            logger.warning(f"Failed to load application icon: {e}")
+
+        # Central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Main layout
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+
+        # Left frame
+        left_frame = QVBoxLayout()
+        left_frame.setSpacing(10)
+        main_layout.addLayout(left_frame, 1)
+
+        # Discord Webhook URL
+        discord_webhook_label = QLabel("DISCORD WEBHOOK URL")
+        discord_webhook_label.setStyleSheet("color: white; font-size: 10pt;")
+        left_frame.addWidget(discord_webhook_label)
+
+        global discord_webhook_input
+        discord_webhook_input = QLineEdit()
+        discord_webhook_input.setText(config["DISCORD_WEBHOOK_URL"])
+        discord_webhook_input.setEchoMode(QLineEdit.Password)
+        discord_webhook_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
+        left_frame.addWidget(discord_webhook_input)
+
+        # Roblox Security Cookie
+        roblox_cookie_label = QLabel(".ROBLOSECURITY")
+        roblox_cookie_label.setStyleSheet("color: white; font-size: 10pt;")
+        left_frame.addWidget(roblox_cookie_label)
+
+        global roblox_cookie_input
+        roblox_cookie_input = QLineEdit()
+        roblox_cookie_input.setText(config["ROBLOSECURITY"])
+        roblox_cookie_input.setEchoMode(QLineEdit.Password)
+        roblox_cookie_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
+        left_frame.addWidget(roblox_cookie_input)
+
+        # Emoji ID
+        emoji_id_label = QLabel("Emoji ID")
+        emoji_id_label.setStyleSheet("color: white; font-size: 10pt;")
+        left_frame.addWidget(emoji_id_label)
+
+        global emoji_id_input
+        emoji_id_input = QLineEdit()
+        emoji_id_input.setText(config["DISCORD_EMOJI_ID"])
+        emoji_id_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
+        left_frame.addWidget(emoji_id_input)
+
+        # Emoji Name
+        emoji_name_label = QLabel("Emoji Name")
+        emoji_name_label.setStyleSheet("color: white; font-size: 10pt;")
+        left_frame.addWidget(emoji_name_label)
+
+        global emoji_name_input
+        emoji_name_input = QLineEdit()
+        emoji_name_input.setText(config.get("DISCORD_EMOJI_NAME", ""))
+        emoji_name_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
+        left_frame.addWidget(emoji_name_input)
+
+        # Total Checks Type
+        roblox_transaction_balance_label = QLabel("Total Checks (Transaction/Balance) Like (Day Month Year)")
+        roblox_transaction_balance_label.setStyleSheet("color: white; font-size: 10pt;")
+        left_frame.addWidget(roblox_transaction_balance_label)
+
+        global roblox_transaction_balance_input
+        roblox_transaction_balance_input = QLineEdit()
+        roblox_transaction_balance_input.setText(config["TOTAL_CHECKS_TYPE"])
+        roblox_transaction_balance_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
+        left_frame.addWidget(roblox_transaction_balance_input)
+
+        # Check Interval
+        timer_label = QLabel("Check Interval (seconds)")
+        timer_label.setStyleSheet("color: white; font-size: 10pt;")
+        left_frame.addWidget(timer_label)
+
+        global timer_input
+        timer_input = QLineEdit()
+        timer_input.setText(config["CHECK_INTERVAL"])
+        timer_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
+        left_frame.addWidget(timer_input)
+
+        # Buttons
+        global credits_button
+        credits_button = QPushButton("Credits")
+        credits_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
+        credits_button.clicked.connect(self.show_credits)
+        left_frame.addWidget(credits_button)
+
+        global save_button
+        save_button = QPushButton("Save Config")
+        save_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
+        save_button.clicked.connect(save_config)
+        left_frame.addWidget(save_button)
+
+        global start_button
+        start_button = QPushButton("Start")
+        start_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
+        start_button.clicked.connect(start_monitoring)
+        left_frame.addWidget(start_button)
+
+        global stop_button
+        stop_button = QPushButton("Stop")
+        stop_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
+        stop_button.clicked.connect(stop_monitoring)
+        stop_button.setEnabled(False)
+        left_frame.addWidget(stop_button)
+
+        # Right frame
+        right_frame = QVBoxLayout()
+        right_frame.setSpacing(10)
+        main_layout.addLayout(right_frame, 2)
+
+        # Log header
+        log_header = QHBoxLayout()
+        right_frame.addLayout(log_header)
+
+        log_label = QLabel("Log Output")
+        log_label.setStyleSheet("color: white; font-size: 12pt; font-weight: bold;")
+        log_header.addWidget(log_label)
+
+        clear_button = QPushButton("Clear Logs")
+        clear_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 5px;")
+        clear_button.clicked.connect(self.clear_logs)
+        log_header.addWidget(clear_button)
+
+        # Log output
+        global log_output
+        log_output = QTextEdit()
+        log_output.setReadOnly(True)
+        log_output.setStyleSheet("background-color: #1a1a1a; color: white; font-family: Consolas; font-size: 10pt;")
+        right_frame.addWidget(log_output)
+
+        # Progress bar
+        global progress_label
+        progress_label = QLabel("Monitoring inactive")
+        progress_label.setStyleSheet("color: white; font-size: 10pt;")
+        right_frame.addWidget(progress_label)
+
+        global progress_var
+        progress_var = QProgressBar()
+        progress_var.setStyleSheet("""
+            QProgressBar {
+                background-color: #1a1a1a;
+                border: none;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+            }
+        """)
+        right_frame.addWidget(progress_var)
+
+        # Logger handler
+        self.gui_handler = GUILogHandler(log_output)
+        logger.add(self.gui_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
+
+    def show_credits(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Credits")
+        dialog.setFixedSize(500, 600)
+        dialog.setStyleSheet("background-color: #1d2636;")
+
+        layout = QVBoxLayout(dialog)
+
+        title_label = QLabel("Credits List")
+        title_label.setStyleSheet("color: white; font-size: 16pt; font-weight: bold;")
+        layout.addWidget(title_label)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        layout.addWidget(scroll_area)
+
+        scroll_widget = QWidget()
+        scroll_area.setWidget(scroll_widget)
+        scroll_layout = QVBoxLayout(scroll_widget)
+
+        credits_data = [
+            ("Application Developer", "MrAndiGamesDev (MrAndi Scripted)"),
+            ("Inspiration", "Komas19")
+        ]
+
+        for section, content in credits_data:
+            section_label = QLabel(section)
+            section_label.setStyleSheet("color: #4CAF50; font-size: 12pt; font-weight: bold;")
+            scroll_layout.addWidget(section_label)
+
+            content_label = QLabel(content)
+            content_label.setStyleSheet("color: white; font-size: 10pt;")
+            scroll_layout.addWidget(content_label)
+
+        close_button = QPushButton("Close")
+        close_button.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; border: none; padding: 8px;")
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(close_button)
+
+        dialog.exec()
+
+    def clear_logs(self):
+        log_output.clear()
+        logger.info("Log output cleared")
+
+    def show_error_dialog(self, title, message):
+        QMessageBox.critical(self, title, message)
+
+    def update_progress(self, value):
+        progress_var.setValue(value)
+
+    def update_status(self, text):
+        progress_label.setText(text)
+
+    def update_buttons(self, start_enabled, stop_enabled):
+        start_button.setEnabled(start_enabled)
+        stop_button.setEnabled(stop_enabled)
+
+    def closeEvent(self, event):
+        global monitoring_event
+        if monitoring_event is not None and not monitoring_event.is_set():
+            monitoring_event.set()  # Stop monitoring
+        event.accept()
 
 class GUILogHandler:
     def __init__(self, text_widget):
         self.text_widget = text_widget
 
     def write(self, message):
-        self.text_widget.configure(state='normal')
+        cursor = QTextCursor(self.text_widget.document())
+        cursor.movePosition(QTextCursor.End)
+        
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # Color coding for different message types
         if "ERROR" in message:
-            self.text_widget.tag_config("error", foreground="red")
-            self.text_widget.insert('end', f"{timestamp} | ", "timestamp")
-            self.text_widget.insert('end', f"{message}\n", "error")
+            self.text_widget.setTextColor(QColor("red"))
         elif "INFO" in message:
-            self.text_widget.tag_config("info", foreground="#00ff00")
-            self.text_widget.insert('end', f"{timestamp} | ", "timestamp")
-            self.text_widget.insert('end', f"{message}\n", "info")
+            self.text_widget.setTextColor(QColor("#00ff00"))
         else:
-            self.text_widget.tag_config("default", foreground="white")
-            self.text_widget.insert('end', f"{timestamp} | ", "timestamp")
-            self.text_widget.insert('end', f"{message}\n", "default")
+            self.text_widget.setTextColor(QColor("white"))
         
-        self.text_widget.tag_config("timestamp", foreground="#ADD8E6")  # Light blue for timestamps
-        self.text_widget.see('end')
-        self.text_widget.configure(state='disabled')
+        cursor.insertText(f"{timestamp} | {message}\n")
+        self.text_widget.setTextCursor(cursor)
+        self.text_widget.ensureCursorVisible()
 
     def flush(self):
         pass
 
-def show_tutorial(field_name):
-    """Show a tutorial GUI for the specified field."""
-    tutorials = {
-        "Webhook": {
-            "title": "Discord Webhook Tutorial",
-            "links": [
-                ("Discord Webhook Guide", "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"),
-                ("Create Webhook Tutorial", "https://www.youtube.com/watch?v=zVgfmtqrBRs")
-            ]
-        },
-        "Cookie": {
-            "title": "Roblox Security Cookie Tutorial",
-            "links": [
-                ("Roblox Cookie Retrieval Guide", "https://github.com/cookiesolomon/roblox-cookie-tutorial"),
-                ("Detailed Cookie Tutorial", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")  # Replace with actual tutorial
-            ]
-        },
-        "Emoji": {
-            "title": "Discord Emoji ID Tutorial",
-            "links": [
-                ("Discord Emoji Guide", "https://support.discord.com/hc/en-us/articles/360039381066-Custom-Emotes-and-Stickers"),
-                ("Emoji ID Tutorial", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")  # Replace with actual tutorial
-            ]
-        }
-    }
-    
-    # If no tutorial exists, show a default message
-    if field_name not in tutorials:
-        messagebox.showinfo("Tutorial", "No tutorial available for this field.")
-        return
-
-    # Create the main window
-    tutorial_window = tk.Toplevel()
-    tutorial_window.title(tutorials[field_name]["title"])
-    tutorial_window.geometry("400x300")
-    tutorial_window.resizable(False, False)
-
-    # Create a frame
-    frame = tk.Frame(tutorial_window, padx=20, pady=20)
-    frame.pack(fill=tk.BOTH, expand=True)
-
-    # Title Label
-    title_label = tk.Label(frame, text=tutorials[field_name]["title"], font=("Helvetica", 16, "bold"))
-    title_label.pack(pady=(0, 20))
-
-    # Create clickable links
-    for link_text, link_url in tutorials[field_name]["links"]:
-        link_label = tk.Label(frame, text=link_text, fg="blue", cursor="hand2", font=("Helvetica", 12, "underline"))
-        link_label.pack(pady=5)
-        link_label.bind("<Button-1>", lambda e, url=link_url: webbrowser.open(url))
-
-    # Close button
-    close_button = tk.Button(frame, text="Close", command=tutorial_window.destroy)
-    close_button.pack(pady=(20, 0))
-
-    # Make the window modal
-    tutorial_window.grab_set()
-    tutorial_window.focus_set()
-
-def randomizednumber(a=None, b=None):
-    """
-    Mimic Python's math.random() function with support for float ranges
-    
-    Python behavior:
-    - No args: returns float between 0 and 1
-    - One int arg n: returns int between 1 and n
-    - Two args a, b: returns int between a and b (inclusive)
-    """
-    if a is None:
-        return random.random()  # Returns float between 0 and 1
-    elif b is None:
-        # Single argument case: treat as max for integer
-        return random.randint(1, int(a))
-    else:
-        # Two arguments: handle both integer and float cases
-        if isinstance(a, float) or isinstance(b, float):
-            # If either argument is a float, use uniform distribution
-            return a + (b - a) * random.random()
-        else:
-            # Integer range case
-            return random.randint(a, b)
-
-async def show_splash_screen():
-    """Create a splash screen with simulated loading."""
-    try:
-        # Create temporary root window
-        root = tk.Tk()
-        root.withdraw()
-
-        # Create splash screen
-        splash = tk.Toplevel(root)
-        splash.title("Roblox Transaction Monitor")
-        splash.overrideredirect(True)  # Remove window decorations
-        
-        # Calculate center position
-        width = 500
-        height = 310
-        screen_width = splash.winfo_screenwidth()
-        screen_height = splash.winfo_screenheight()
-        x = (screen_width - width) // 2
-        y = (screen_height - height) // 2
-        splash.geometry(f"{width}x{height}+{x}+{y}")
-        
-        # Configure splash screen appearance
-        splash.configure(bg="#1d2636")
-        splash_frame = tk.Frame(splash, bg="#1d2636", bd=2, relief="solid")  # Lighter background
-        splash_frame.place(relx=0.5, rely=0.5, anchor="center", width=width, height=height)
-        
-        # Add application name
-        title_label = tk.Label(
-            splash_frame, 
-            text="Roblox Transaction & Robux Monitoring", 
-            font=("Arial", 18, "bold"),
-            bg="#1d2636",  # Matching background
-            fg="white"
-        )
-        title_label.pack(pady=(30, 15))
-        
-        # Add loading text
-        status_label = tk.Label(
-            splash_frame,
-            text="Initializing...",
-            font=("Arial", 12),
-            bg="#1d2636",  # Matching background
-            fg="white"
-        )
-        status_label.pack(pady=(0, 15))
-        
-        # Configure progress bar style
-        style = ttk.Style()
-        style.configure(
-            "Splash.Horizontal.TProgressbar",
-            troughcolor='#1a1a1a',
-            background='#1d2636',
-            darkcolor='#4CAF50',
-            lightcolor='#4CAF50',
-            bordercolor='#1a1a1a'
-        )
-        
-        # Add progress bar
-        progress_var = tk.DoubleVar()
-        progress_bar = ttk.Progressbar(
-            splash_frame,
-            style="Splash.Horizontal.TProgressbar",
-            variable=progress_var,
-            length=400,
-            mode="determinate"
-        )
-        progress_bar.pack(pady=15)
-        
-        # Update the window to ensure everything is drawn
-        splash.update()
-        
-        try:
-            # Load logo after setting up other UI elements
-            logo_response = rate_limited_request('GET', icon_url)
-            logo_response.raise_for_status()
-            
-            # Process logo image
-            logo_image = Image.open(io.BytesIO(logo_response.content))
-            
-            # Convert image to RGBA if it's not already
-            if logo_image.mode != 'RGBA':
-                logo_image = logo_image.convert('RGBA')
-            
-            # Resize image
-            logo_image = logo_image.resize((75, 75), Image.LANCZOS)
-            
-            # Create logo label with transparent background
-            logo_photo = ImageTk.PhotoImage(logo_image)
-            logo_label = tk.Label(
-                splash_frame, 
-                image=logo_photo, 
-                bg="#1d2636"  # Matching background color
-            )
-            logo_label.image = logo_photo  # Keep a reference to prevent garbage collection
-            logo_label.pack(pady=(10, 10), before=title_label)
-
-            # Update the window again
-            splash.update()
-        except Exception as e:
-            logger.warning(f"Failed to load splash screen logo: {e}")
-        
-        def update_progress(text, value):
-            status_label.config(text=text)
-            progress_var.set(value)
-            splash.update()
-        
-        # Simulate loading steps
-        loading_steps = [
-            ("Starting application...", 2),
-            ("Initializing core components...", 5),
-            ("Loading dependencies...", 7),
-            ("Checking configuration...", 10),
-            ("Verifying system requirements...", 12),
-            ("Ensuring compatibility...", 14),
-            ("Loading resources...", 18),
-            ("Optimizing performance settings...", 22),
-            ("Setting up virtual environment...", 25),
-            ("Preparing interface...", 28),
-            ("Loading UI components...", 30),
-            ("Setting up user preferences...", 33),
-            ("Connecting to Roblox...", 35),
-            ("Establishing secure connection...", 38),
-            ("Verifying network status...", 40),
-            ("Authenticating user...", 45),
-            ("Validating credentials...", 50),
-            ("Retrieving user data...", 55),
-            ("Loading assets...", 58),
-            ("Applying updates...", 59),
-            ("Almost there...", 60),
-            ("Caching essential data...", 62),
-            ("Finalizing user session...", 65),
-            ("Configuring environment...", 70),
-            ("Syncing cloud data...", 75),
-            ("Setting up game configurations...", 78),
-            ("Checking for new content...", 80),
-            ("Downloading additional assets...", 81),
-            ("Compiling shaders...", 82),
-            ("Initializing game engine...", 83),
-            ("Loading game scripts...", 84),
-            ("Verifying file integrity...", 86),
-            ("Final optimizations...", 88),
-            ("Preloading textures and models...", 90),
-            ("Applying last-minute fixes...", 92),
-            ("Finalizing rendering settings...", 94),
-            ("Finalizing...", 95),
-            ("Cleaning up temporary files...", 97),
-            ("Preparing launch sequence...", 98),
-            ("Almost done!", 99),
-            ("Ready to launch!", 100)
-        ]
-        
-        # Perform actual initialization tasks
-        async def initialize_app():
-            nonlocal splash, root
-            
-            # Perform initialization tasks with progress updates
-            for text, progress in loading_steps:
-                update_progress(text, progress)
-                
-                # Simulate some async work
-                if progress == 30:
-                    # Load application icon
-                    try:
-                        response = rate_limited_request('GET', icon_url)
-                        response.raise_for_status()
-                    except Exception as e:
-                        logger.warning(f"Failed to load application icon: {e}")
-                
-                elif progress == 50:
-                    # Validate configuration
-                    try:
-                        is_valid, message = validate_config()
-                        if not is_valid:
-                            logger.warning(f"Configuration validation warning: {message}")
-                    except Exception as e:
-                        logger.error(f"Configuration validation error: {e}")
-                
-                elif progress == 70:
-                    # Test Roblox API connectivity
-                    try:
-                        test_response = rate_limited_request(
-                            'GET', 
-                            "https://users.roblox.com/v1/users/authenticated", 
-                            cookies={'.ROBLOSECURITY': config["ROBLOSECURITY"]},
-                            timeout=10
-                        )
-                        
-                        logger.info(f"Roblox API response status code: {test_response.status_code}")
-                        if test_response.status_code != 200:
-                            logger.warning("Roblox API connectivity test failed")
-                    except Exception as e:
-                        logger.error(f"Roblox API connectivity error: {e}")
-                
-                # Small delay to simulate work
-                random_delay = randomizednumber(0.25, 0.5)
-                await asyncio.sleep(random_delay)
-            
-            # Close splash screen
-            splash.destroy()
-            root.destroy()
-        
-        # Run initialization
-        await initialize_app()
-        
-        return True
-    except Exception as e:
-        logger.warning(f"Failed to load splash screen logo: {e}")
-
-def show_popup_for_unsupported_os(title, message):
-    root = tk.Tk()
-    root.withdraw()  # Hide the root window
-    messagebox.showerror(title, message)
-
-def detect_operating_system():
-    supported_operating_systems = ["Windows", "Darwin"]
-    is_supported = False
-    current_os = platform.system()
-    
-    os_msg = {
-        "Windows": (
-            "Windows Operating System",
-            "You are currently running on Windows:\n\n"
-            "1. This application was primarily designed for Linux.\n"
-            "2. Windows support is limited or not available.\n"
-            "3. Some features may not work as expected."
-        ),
-        "Linux": (
-            "Linux Operating System",
-            "You are currently running on Linux:\n\n"
-            "1. Roblox recently added anti-hypervision protection.\n"
-            "2. Linux support has been discontinued.\n"
-            "3. Roblox does not support Linux due to exploitability."
-        ),
-        "Darwin": (
-            "macOS Operating System",
-            "You are currently running on MacOS:\n\n"
-            "1. This application was primarily designed for Linux.\n"
-            "2. macOS support is limited or not available.\n"
-            "3. Some features may not work as expected."
-        )
-    }
-    
-    # Iterate through supported operating systems
-    for supported_os in supported_operating_systems:
-        if current_os == supported_os:
-            is_supported = True
-            break
-    
-    # If no supported OS is found, handle unsupported OS
-    if not is_supported:
-        try:
-            # Determine which tutorial message to show based on the current OS
-            title, message = os_msg.get(current_os, ("Unsupported OS", f"Your operating system ({current_os}) is not supported."))
-            
-            # Show error message
-            show_popup_for_unsupported_os(title, message)
-            
-            # Log the unsupported OS
-            logger.error(f"Unsupported operating system detected: {current_os}")
-            
-            # Attempt to exit the application
-            try:
-                sys.exit(1)
-            except:
-                os._exit(1)
-        
-        except Exception as e:
-            logger.error(f"Error handling unsupported OS: {e}")
-            
-            # Fallback exit
-            try:
-                sys.exit(1)
-            except:
-                os._exit(1)
-    
-    return is_supported
-
-def show_tutorial(field_name):
-    """Show a tutorial popup for the specified field."""
-    tutorials = {
-        "Webhook": (
-            "Discord Webhook Tutorial",
-            "To get your Discord Webhook URL:\n\n"
-            "1. Open Discord and go to your server\n"
-            "2. Right-click on a channel and select 'Edit Channel'\n"
-            "3. Click on 'Integrations'\n"
-            "4. Click on 'Create Webhook'\n"
-            "5. Click 'Copy Webhook URL'\n"
-            "6. Paste the URL here"
-        ),
-        "Cookie": (
-            "Roblox Security Cookie Tutorial",
-            "To get your .ROBLOSECURITY cookie:\n\n"
-            "1. Go to Roblox.com and log in\n"
-            "2. Press F12 to open Developer Tools\n"
-            "3. Go to 'Application' tab\n"
-            "4. Click 'Cookies' in the left sidebar\n"
-            "5. Click on 'https://www.roblox.com'\n"
-            "6. Find '.ROBLOSECURITY' and copy its value\n"
-            "7. Paste it here"
-        ),
-        "Emoji": (
-            "Discord Emoji ID Tutorial",
-            "To get your Discord Emoji ID:\n\n"
-            "1. In Discord, type '\\' followed by your emoji name\n"
-            "2. The emoji ID will appear in the format <:name:ID>\n"
-            "3. Copy only the numbers or copy the emoji link (ID) part\n"
-            "4. Paste the ID here"
-        )
-    }
-    
-    title, message = tutorials.get(field_name, ("Tutorial", "Please fill in this field."))
-    messagebox.showinfo(title, message)
-
 def save_config():
     """Save the configuration with validation and tutorials."""
-    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input, roblox_transaction_balance_label
+    global discord_webhook_input, roblox_cookie_input, emoji_id_input, emoji_name_input, timer_input
     global start_button, progress_label, roblox_cookie_label, save_button, window
 
     try:
-        # Check if window is initialized
-        if window is None:
-            logger.error("Application window is not initialized")
-            messagebox.showerror(
-                "Configuration Error", 
-                "Application is not fully initialized. Please restart the application."
-            )
-            return
-
-        # Comprehensive check for input fields
-        input_fields = [
-            discord_webhook_input, roblox_cookie_input, emoji_id_input, 
-            emoji_name_input, timer_input
-        ]
-        
-        # Check if any of the input fields are None
-        if any(field is None for field in input_fields):
-            logger.error("Some configuration input fields are not fully initialized")
-            messagebox.showerror(
-                "Configuration Error", 
-                "Application is not fully initialized. Please restart the application."
-            )
-            return
-
         # Get input values safely
-        webhook_url = discord_webhook_input.get().strip()
-        roblosecurity = roblox_cookie_input.get().strip()
-        emoji_id = emoji_id_input.get().strip()
-        emoji_name = emoji_name_input.get().strip()  
-        interval = timer_input.get().strip()
+        webhook_url = discord_webhook_input.text().strip()
+        roblosecurity = roblox_cookie_input.text().strip()
+        emoji_id = emoji_id_input.text().strip()
+        emoji_name = emoji_name_input.text().strip()  
+        interval = timer_input.text().strip()
         
         # Default to "Year" if transaction balance input is empty or not set
         total_checks_type = "Year"
@@ -1484,7 +1264,7 @@ def save_config():
         if validation_errors:
             error_message = "Please correct the following errors:\n\n" + "\n".join(f"• {error}" for error in validation_errors)
             logger.warning(f"Configuration validation failed: {error_message}")
-            messagebox.showerror("Configuration Validation Failed", error_message)
+            QMessageBox.critical(window, "Configuration Validation Failed", error_message)
             return
 
         # If we've passed all validations, update the config
@@ -1502,354 +1282,106 @@ def save_config():
         
         # Reset UI styles for cookie input
         if roblox_cookie_input and roblox_cookie_label:
-            roblox_cookie_input.config(bg="#2e3b4e")
-            roblox_cookie_label.config(fg="white")
+            roblox_cookie_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
+            roblox_cookie_label.setStyleSheet("color: white; font-size: 10pt;")
         
         # Re-enable start button and update progress label if config is valid
         is_valid, validation_message = validate_config()
         if is_valid:
             if start_button:
-                start_button.config(state='normal')
+                start_button.setEnabled(True)
             if save_button:
-                save_button.config(state='normal')
+                save_button.setEnabled(True)
             if progress_label:
-                progress_label.config(text="Monitoring inactive")
+                progress_label.setText("Monitoring inactive")
             logger.info("Configuration saved and validated successfully")
-            messagebox.showinfo("Success", "Configuration Saved Successfully!")
+            QMessageBox.information(window, "Success", "Configuration Saved Successfully!")
         else:
             logger.warning(f"Configuration saved but validation failed: {validation_message}")
-            messagebox.showwarning("Partial Success", f"Configuration saved, but: {validation_message}")
+            QMessageBox.warning(window, "Partial Success", f"Configuration saved, but: {validation_message}")
 
     except Exception as e:
         error_msg = f"Unexpected error saving configuration: {str(e)}"
         logger.error(error_msg)
-        messagebox.showerror("Unexpected Error", error_msg)
+        QMessageBox.critical(window, "Unexpected Error", error_msg)
 
-async def Initialize_gui():
-    # Remove the existing splash screen code and replace with the new approach
-    logger.info("Starting Roblox Transaction & Robux Monitoring application...")
+def detect_operating_system():
+    supported_operating_systems = ["Windows", "Darwin"]
+    is_supported = False
+    current_os = platform.system()
     
-    try:
-        # Show splash screen and wait for initialization
-        await show_splash_screen()
-        
-        # Create main window
-        global window
-        window = tk.Tk()
-        response = rate_limited_request('GET', icon_url)
-        response.raise_for_status()  # Raise an error for failed requests
-
-        # Load the icon image
-        img_data = BytesIO(response.content)
-        icon = Image.open(img_data)
-        icon = ImageTk.PhotoImage(icon)
-
-        # Set the icon and window title
-        window.iconphoto(False, icon)
-        window.resizable(False, False)
-        window.title("Roblox Transaction & Robux Monitoring")
-        window.config(bg="#1d2636")
-        window.geometry("700x700")
-        
-        # Create main frame
-        main_frame = tk.Frame(window, bg="#1d2636")
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        # Create left frame for inputs
-        left_frame = tk.Frame(main_frame, bg="#1d2636")
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-
-        # Input fields for configuration
-        discord_webhook_label = tk.Label(left_frame, text="DISCORD WEBHOOK URL", bg="#1d2636", fg="white", font=("Arial", 10))
-        discord_webhook_label.pack(pady=(5, 0))
-
-        global discord_webhook_input
-        discord_webhook_input = tk.Entry(left_frame, width=40, show="*")
-        discord_webhook_input.insert(0, config["DISCORD_WEBHOOK_URL"])
-        apply_styles(discord_webhook_input)
-        discord_webhook_input.pack(pady=5)
-
-        # Input fields for configuration
-        roblox_cookie_label = tk.Label(left_frame, text=".ROBLOSECURITY", bg="#1d2636", fg="white", font=("Arial", 10))
-        roblox_cookie_label.pack(pady=(5, 0))
-
-        global roblox_cookie_input
-        roblox_cookie_input = tk.Entry(left_frame, width=40, show="*")
-        roblox_cookie_input.insert(0, config["ROBLOSECURITY"])
-        apply_styles(roblox_cookie_input)
-        roblox_cookie_input.pack(pady=5)
-
-        # Input fields for configuration
-        emoji_id_label = tk.Label(left_frame, text="Emoji ID", bg="#1d2636", fg="white", font=("Arial", 10))
-        emoji_id_label.pack(pady=(5, 0))
-
-        global emoji_id_input
-        emoji_id_input = tk.Entry(left_frame, width=40)
-        emoji_id_input.insert(0, config["DISCORD_EMOJI_ID"])
-        apply_styles(emoji_id_input)
-        emoji_id_input.pack(pady=5)
-
-        # Input fields for configuration
-        emoji_name_label = tk.Label(left_frame, text="Emoji Name", bg="#1d2636", fg="white", font=("Arial", 10))
-        emoji_name_label.pack(pady=(5, 0))
-
-        global emoji_name_input
-        emoji_name_input = tk.Entry(left_frame, width=40)
-        emoji_name_input.insert(0, config.get("DISCORD_EMOJI_NAME", ""))
-        apply_styles(emoji_name_input)
-        emoji_name_input.pack(pady=5)
-
-        # Add total checks transaction/balance field
-        roblox_transaction_balance_label = tk.Label(left_frame, text="Total Checks (Transaction/Balance) Like (Day Month Year)", bg="#1d2636", fg="white", font=("Arial", 10))
-        roblox_transaction_balance_label.pack(pady=(5, 0))
-
-        global roblox_transaction_balance_input
-        roblox_transaction_balance_input = tk.Entry(left_frame, width=40)
-        roblox_transaction_balance_input.insert(0, str(config["TOTAL_CHECKS_TYPE"]))
-        apply_styles(roblox_transaction_balance_input)
-        roblox_transaction_balance_input.pack(pady=5)
-        
-        # Add timer input field
-        timer_label = tk.Label(left_frame, text="Check Interval (seconds)", bg="#1d2636", fg="white", font=("Arial", 10))
-        timer_label.pack(pady=(5, 0))
-
-        global timer_input
-        timer_input = tk.Entry(left_frame, width=40)
-        timer_input.insert(0, str(config["CHECK_INTERVAL"]))
-        apply_styles(timer_input)
-        timer_input.pack(pady=5)
-
-        # Add credits button
-        def show_credits_gui():
-            """
-            Display a credits window with information about the application and its contributors.
-            """
-            global credits_window
-            
-            # Prevent multiple credit windows
-            if hasattr(globals(), 'credits_window') and credits_window is not None and credits_window.winfo_exists():
-                credits_window.lift()
-                return
-            
-            response = rate_limited_request('GET', icon_url)
-            response.raise_for_status()  # Raise an error for failed requests
-
-            # Load the icon image
-            img_data = BytesIO(response.content)
-            icon = Image.open(img_data)
-            icon = ImageTk.PhotoImage(icon)
-
-            credits_window = tk.Toplevel(window)
-            credits_window.title("Credits")
-            
-            credits_window.geometry("500x600")
-            credits_window.config(bg="#1d2636")
-            credits_window.resizable(False, False)
-
-            # Set the icon and window title
-            credits_window.iconphoto(False, icon)
-
-            # Create a frame for scrolling
-            credits_frame = tk.Frame(credits_window, bg="#1d2636")
-            credits_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-            
-            # Create a canvas with scrollbar
-            canvas = tk.Canvas(credits_frame, bg="#1d2636", highlightthickness=0)
-            scrollbar = tk.Scrollbar(credits_frame, orient=tk.VERTICAL, command=canvas.yview)
-            scrollable_frame = tk.Frame(canvas, bg="#1d2636")
-            
-            scrollable_frame.bind(
-                "<Configure>",
-                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-            )
-            
-            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-            canvas.configure(yscrollcommand=scrollbar.set)
-            
-            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            
-            # Credits title
-            title_label = tk.Label(
-                scrollable_frame, 
-                text="Credits List", 
-                font=("Arial", 16, "bold"), 
-                fg="white", 
-                bg="#1d2636"
-            )
-            title_label.pack(pady=(0, 20))
-
-            # Center the credit sections by using a frame
-            credit_section_frame = tk.Frame(scrollable_frame, bg="#1d2636")
-            credit_section_frame.pack(pady=10)
-
-            # Credit sections
-            credits_data = [
-                ("Application Developer", "MrAndiGamesDev (MrAndi Scripted)"),
-                ("Inspiration", "Komas19")
-            ]
-            
-            for section, content in credits_data:
-                section_label = tk.Label(
-                    credit_section_frame, 
-                    text=section, 
-                    font=("Arial", 12, "bold"), 
-                    fg="#4CAF50", 
-                    bg="#1d2636"
-                )
-                section_label.pack(pady=(10, 5))
-                
-                content_label = tk.Label(
-                    credit_section_frame, 
-                    text=content, 
-                    font=("Arial", 10), 
-                    fg="white", 
-                    bg="#1d2636"
-                )
-                content_label.pack()
-
-            # Close button
-            close_button = tk.Button(
-                scrollable_frame, 
-                text="Close", 
-                command=credits_window.destroy, 
-                bg="#2196F3", 
-                fg="white", 
-                font=("Arial", 10, "bold")
-            )
-            close_button.pack(pady=20)
-
-        credits_button = tk.Button(left_frame, text="Credits", command=show_credits_gui)
-        apply_button_styles(credits_button)
-        credits_button.pack(pady=10)
-
-        # Buttons
-        save_button = tk.Button(left_frame, text="Save Config", command=save_config)
-        apply_button_styles(save_button)
-        save_button.pack(pady=10)
-
-        global start_button
-        start_button = tk.Button(left_frame, text="Start", command=start_monitoring)
-        apply_button_styles(start_button)
-        start_button.pack(pady=10)
-
-        global stop_button
-        stop_button = tk.Button(left_frame, text="Stop", command=stop_monitoring)
-        apply_button_styles(stop_button)
-        stop_button.pack(pady=10)
-        stop_button.config(state='disabled')  # Initially disabled
-
-        # Create progress frame
-        progress_frame = tk.Frame(window, bg="#1d2636")
-        progress_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-        # Progress bar style
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Custom.Horizontal.TProgressbar",
-            troughcolor='#1a1a1a',
-            background='#4CAF50',
-            darkcolor='#4CAF50',
-            lightcolor='#4CAF50',
-            bordercolor='#1a1a1a'
+    os_msg = {
+        "Windows": (
+            "Windows Operating System",
+            "You are currently running on Windows:\n\n"
+            "1. This application was primarily designed for Linux.\n"
+            "2. Windows support is limited or not available.\n"
+            "3. Some features may not work as expected."
+        ),
+        "Linux": (
+            "Linux Operating System",
+            "You are currently running on Linux:\n\n"
+            "1. Roblox recently added anti-hypervision protection.\n"
+            "2. Linux support has been discontinued.\n"
+            "3. Roblox does not support Linux due to exploitability."
+        ),
+        "Darwin": (
+            "macOS Operating System",
+            "You are currently running on MacOS:\n\n"
+            "1. This application was primarily designed for Linux.\n"
+            "2. macOS support is limited or not available.\n"
+            "3. Some features may not work as expected."
         )
-
-        # Progress variables
-        global progress_var
-        progress_var = tk.DoubleVar()
+    }
+    
+    # Iterate through supported operating systems
+    for supported_os in supported_operating_systems:
+        if current_os == supported_os:
+            is_supported = True
+            break
+    
+    # If no supported OS is found, handle unsupported OS
+    if not is_supported:
+        try:
+            # Determine which tutorial message to show based on the current OS
+            title, message = os_msg.get(current_os, ("Unsupported OS", f"Your operating system ({current_os}) is not supported."))
+            
+            # Show error message
+            QMessageBox.critical(None, title, message)
+            
+            # Log the unsupported OS
+            logger.error(f"Unsupported operating system detected: {current_os}")
+            
+            # Attempt to exit the application
+            try:
+                sys.exit(1)
+            except:
+                os._exit(1)
         
-        global progress_label
-        progress_label = tk.Label(
-            progress_frame, 
-            text="Monitoring inactive", 
-            bg="#1d2636", 
-            fg="white", 
-            font=("Arial", 10)
-        )
-        progress_label.pack(side=tk.TOP, pady=(0, 5))
+        except Exception as e:
+            logger.error(f"Error handling unsupported OS: {e}")
+            
+            # Fallback exit
+            try:
+                sys.exit(1)
+            except:
+                os._exit(1)
+    
+    return is_supported
 
-        progress_bar = ttk.Progressbar(progress_frame,
-            style="Custom.Horizontal.TProgressbar",
-            variable=progress_var,
-            mode='determinate',
-            length=780
-        )
-        progress_bar.pack(fill=tk.X)
-
-        # Create right frame for log output
-        right_frame = tk.Frame(main_frame, bg="#1d2636")
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
-
-        # Create log header frame
-        log_header = tk.Frame(right_frame, bg="#2e3b4e")
-        log_header.pack(fill=tk.X, pady=(0, 5))
-
-        # Add "Log Output" label
-        log_label = tk.Label(log_header, text="Log Output", bg="#2e3b4e", fg="white", font=("Arial", 12, "bold"))
-        log_label.pack(side=tk.LEFT, padx=5, pady=5)
-
-        def clear_logs():
-            """Clear the log output text widget."""
-            log_output.configure(state='normal')
-            log_output.delete(1.0, tk.END)
-            log_output.configure(state='disabled')
-            logger.info("Log output cleared")
-
-        # Add clear button
-        clear_button = tk.Button(log_header, text="Clear Logs", command=clear_logs)
-        apply_button_styles(clear_button)
-        clear_button.pack(side=tk.RIGHT, padx=5, pady=5)
-
-        # Add log output text widget with improved styling
-        global log_output
-        log_output = scrolledtext.ScrolledText(
-            right_frame, 
-            height=30, 
-            bg="#1a1a1a",
-            fg="white", 
-            font=("Consolas", 10),
-            padx=10,
-            pady=10,
-            wrap=tk.WORD
-        )
-        log_output.pack(fill=tk.BOTH, expand=True)
-        log_output.configure(state='disabled')
-
-        # Create and configure GUI log handler
-        gui_handler = GUILogHandler(log_output)
-        logger.add(gui_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
-
-        # Configure buttons and initial state
-        save_button.config(state='normal')
-        start_button.config(state='normal')
-        stop_button.config(state='disabled')
-
-        def on_close():
-            """Handle window closure."""
-            global monitoring_event
-            # Ensure monitoring_event exists and is not set
-            if monitoring_event is not None and not monitoring_event.is_set():
-                monitoring_event.set()  # Stop monitoring
-            window.destroy()
-
-        # Start the main event loop
-        window.protocol("WM_DELETE_WINDOW", on_close)
-        window.mainloop()
-
-        return True
-    except Exception as e:
-        logger.error(f"Error initializing GUI: {e}")
-        messagebox.showerror("Initialization Error", str(e))
-
-def check_operating_system():
+def main():
     # First, check the operating system
     os_check_result = detect_operating_system()
     # Only proceed with GUI initialization if OS is supported
     if os_check_result:
         # Run the GUI initialization
-        asyncio.run(Initialize_gui())
+        app = QApplication(sys.argv)
+        global window
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec())
     else:
         logger.error("Unsupported operating system. Application cannot start.")
 
 if __name__ == "__main__":
-    check_operating_system()
+    main()
