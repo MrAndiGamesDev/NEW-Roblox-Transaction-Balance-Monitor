@@ -7,6 +7,7 @@ import sys
 import platform
 import io
 import webbrowser
+import ctypes
 import traceback
 from io import BytesIO
 from PIL import Image, ImageQt
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
 from PySide6.QtGui import QPixmap, QIcon, QFont, QPalette, QColor, QTextCursor, QDesktopServices
+from ctypes import wintypes
 
 # Global variables for GUI elements
 monitoring_event = None
@@ -936,12 +938,30 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.init_ui()
         self.connect_signals()
+        self.apply_dark_title_bar()
 
     def connect_signals(self):
         self.show_error_signal.connect(self.show_error_dialog)
         self.update_progress_signal.connect(self.update_progress)
         self.update_status_signal.connect(self.update_status)
         self.update_buttons_signal.connect(self.update_buttons)
+
+    def apply_dark_title_bar(self):
+        """Apply dark mode to the native Windows title bar using ctypes."""
+        if platform.system() == "Windows":
+            try:
+                # Windows 10/11 dark title bar constants
+                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                hwnd = self.winId().__int__()
+                value = ctypes.c_int(1)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_USE_IMMERSIVE_DARK_MODE,
+                    ctypes.byref(value),
+                    ctypes.sizeof(value)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to apply dark title bar: {e}")
 
     def init_ui(self):
         self.setWindowTitle("Roblox Transaction & Robux Monitor")
