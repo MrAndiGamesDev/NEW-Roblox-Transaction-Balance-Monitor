@@ -218,11 +218,9 @@ def get_authenticated_user_id():
         return None
 
 USERID = get_authenticated_user_id()
-
 ROBLOX_ECONOMY_API = "https://economy.roblox.com"
 TRANSACTION_API_URL = f"{ROBLOX_ECONOMY_API}/v2/users/{USERID}/transaction-totals?timeFrame={DATE_TYPE}&transactionType=summary"
 CURRENCY_API_URL = f"{ROBLOX_ECONOMY_API}/v1/users/{USERID}/currency"
-
 FOLDERNAME = os.path.join(APP_DIR, "transaction_info")
 
 if not os.path.exists(FOLDERNAME):
@@ -946,9 +944,48 @@ class MainWindow(QMainWindow):
         self.update_buttons_signal.connect(self.update_buttons)
 
     def init_ui(self):
-        self.setWindowTitle("Roblox Transaction & Robux Monitoring")
-        self.setFixedSize(700, 700)
-        self.setStyleSheet("background-color: #1d2636;")
+        self.setWindowTitle("Roblox Transaction & Robux Monitor")
+        self.setFixedSize(900, 800)
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #0f172a;
+            }
+            QLineEdit {
+                background-color: #1e293b;
+                color: #e2e8f0;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 10pt;
+            }
+            QLineEdit:focus {
+                border: 1px solid #60a5fa;
+            }
+            QLabel {
+                color: #cbd5e1;
+                font-size: 10pt;
+                font-weight: 600;
+            }
+            QPushButton {
+                background-color: #3b82f6;
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+                padding: 10px;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #60a5fa;
+            }
+            QPushButton:pressed {
+                background-color: #2563eb;
+            }
+            QPushButton:disabled {
+                background-color: #475569;
+                color: #94a3b8;
+            }
+        """)
 
         # Load icon
         try:
@@ -967,151 +1004,179 @@ class MainWindow(QMainWindow):
 
         # Main layout
         main_layout = QHBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(24)
 
         # Left frame
         left_frame = QVBoxLayout()
-        left_frame.setSpacing(10)
+        left_frame.setSpacing(16)
         main_layout.addLayout(left_frame, 1)
 
+        # Header
+        header_label = QLabel("⚙️ Configuration")
+        header_label.setStyleSheet("color: #60a5fa; font-size: 14pt; font-weight: bold;")
+        left_frame.addWidget(header_label)
+
         # Discord Webhook URL
-        discord_webhook_label = QLabel("DISCORD WEBHOOK URL")
-        discord_webhook_label.setStyleSheet("color: white; font-size: 10pt;")
+        discord_webhook_label = QLabel("Discord Webhook URL")
         left_frame.addWidget(discord_webhook_label)
 
         global discord_webhook_input
         discord_webhook_input = QLineEdit()
         discord_webhook_input.setText(config["DISCORD_WEBHOOK_URL"])
         discord_webhook_input.setEchoMode(QLineEdit.Password)
-        discord_webhook_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
         left_frame.addWidget(discord_webhook_input)
 
         # Roblox Security Cookie
         roblox_cookie_label = QLabel(".ROBLOSECURITY")
-        roblox_cookie_label.setStyleSheet("color: white; font-size: 10pt;")
         left_frame.addWidget(roblox_cookie_label)
 
         global roblox_cookie_input
         roblox_cookie_input = QLineEdit()
         roblox_cookie_input.setText(config["ROBLOSECURITY"])
         roblox_cookie_input.setEchoMode(QLineEdit.Password)
-        roblox_cookie_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
         left_frame.addWidget(roblox_cookie_input)
 
-        # Emoji ID
-        emoji_id_label = QLabel("Emoji ID")
-        emoji_id_label.setStyleSheet("color: white; font-size: 10pt;")
-        left_frame.addWidget(emoji_id_label)
+        # Emoji settings (horizontal layout)
+        emoji_layout = QHBoxLayout()
+        emoji_layout.setSpacing(12)
 
+        emoji_id_layout = QVBoxLayout()
+        emoji_id_label = QLabel("Emoji ID")
+        emoji_id_layout.addWidget(emoji_id_label)
         global emoji_id_input
         emoji_id_input = QLineEdit()
         emoji_id_input.setText(config["DISCORD_EMOJI_ID"])
-        emoji_id_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
-        left_frame.addWidget(emoji_id_input)
+        emoji_id_layout.addWidget(emoji_id_input)
+        emoji_layout.addLayout(emoji_id_layout)
 
-        # Emoji Name
+        emoji_name_layout = QVBoxLayout()
         emoji_name_label = QLabel("Emoji Name")
-        emoji_name_label.setStyleSheet("color: white; font-size: 10pt;")
-        left_frame.addWidget(emoji_name_label)
-
+        emoji_name_layout.addWidget(emoji_name_label)
         global emoji_name_input
         emoji_name_input = QLineEdit()
         emoji_name_input.setText(config.get("DISCORD_EMOJI_NAME", ""))
-        emoji_name_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
-        left_frame.addWidget(emoji_name_input)
+        emoji_name_layout.addWidget(emoji_name_input)
+        emoji_layout.addLayout(emoji_name_layout)
 
-        # Total Checks Type
-        roblox_transaction_balance_label = QLabel("Total Checks (Transaction/Balance) Like (Day Month Year)")
-        roblox_transaction_balance_label.setStyleSheet("color: white; font-size: 10pt;")
-        left_frame.addWidget(roblox_transaction_balance_label)
-
-        global roblox_transaction_balance_input
-        roblox_transaction_balance_input = QLineEdit()
-        roblox_transaction_balance_input.setText(config["TOTAL_CHECKS_TYPE"])
-        roblox_transaction_balance_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
-        left_frame.addWidget(roblox_transaction_balance_input)
+        left_frame.addLayout(emoji_layout)
 
         # Check Interval
         timer_label = QLabel("Check Interval (seconds)")
-        timer_label.setStyleSheet("color: white; font-size: 10pt;")
         left_frame.addWidget(timer_label)
 
         global timer_input
         timer_input = QLineEdit()
         timer_input.setText(config["CHECK_INTERVAL"])
-        timer_input.setStyleSheet("background-color: #2e3b4e; color: white; border: none; padding: 5px;")
         left_frame.addWidget(timer_input)
 
+        # Total Checks Type
+        roblox_transaction_balance_label = QLabel("Total Checks Type (Day/Week/Month/Year)")
+        left_frame.addWidget(roblox_transaction_balance_label)
+
+        global roblox_transaction_balance_input
+        roblox_transaction_balance_input = QLineEdit()
+        roblox_transaction_balance_input.setText(config["TOTAL_CHECKS_TYPE"])
+        left_frame.addWidget(roblox_transaction_balance_input)
+
         # Buttons
-        global credits_button
-        credits_button = QPushButton("Credits")
-        credits_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
-        credits_button.clicked.connect(self.show_credits)
-        left_frame.addWidget(credits_button)
+        buttons_layout = QVBoxLayout()
+        buttons_layout.setSpacing(12)
 
         global save_button
-        save_button = QPushButton("Save Config")
-        save_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
+        save_button = QPushButton("💾 Save Configuration")
         save_button.clicked.connect(save_config)
-        left_frame.addWidget(save_button)
+        buttons_layout.addWidget(save_button)
 
         global start_button
-        start_button = QPushButton("Start")
-        start_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
+        start_button = QPushButton("▶️ Start Monitoring")
         start_button.clicked.connect(start_monitoring)
-        left_frame.addWidget(start_button)
+        buttons_layout.addWidget(start_button)
 
         global stop_button
-        stop_button = QPushButton("Stop")
-        stop_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 8px;")
+        stop_button = QPushButton("⏹️ Stop Monitoring")
         stop_button.clicked.connect(stop_monitoring)
         stop_button.setEnabled(False)
-        left_frame.addWidget(stop_button)
+        buttons_layout.addWidget(stop_button)
+
+        global credits_button
+        credits_button = QPushButton("ℹ️ Credits")
+        credits_button.clicked.connect(self.show_credits)
+        buttons_layout.addWidget(credits_button)
+
+        left_frame.addLayout(buttons_layout)
 
         # Right frame
         right_frame = QVBoxLayout()
-        right_frame.setSpacing(10)
+        right_frame.setSpacing(16)
         main_layout.addLayout(right_frame, 2)
 
         # Log header
         log_header = QHBoxLayout()
-        right_frame.addLayout(log_header)
+        log_header.setSpacing(12)
 
-        log_label = QLabel("Log Output")
-        log_label.setStyleSheet("color: white; font-size: 12pt; font-weight: bold;")
+        log_label = QLabel("📋 Log Output")
+        log_label.setStyleSheet("color: #60a5fa; font-size: 14pt; font-weight: bold;")
         log_header.addWidget(log_label)
 
-        clear_button = QPushButton("Clear Logs")
-        clear_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; border: none; padding: 5px;")
+        log_header.addStretch()
+
+        clear_button = QPushButton("🗑️ Clear")
+        clear_button.setMaximumWidth(80)
         clear_button.clicked.connect(self.clear_logs)
         log_header.addWidget(clear_button)
+
+        right_frame.addLayout(log_header)
 
         # Log output
         global log_output
         log_output = QTextEdit()
         log_output.setReadOnly(True)
-        log_output.setStyleSheet("background-color: #1a1a1a; color: white; font-family: Consolas; font-size: 10pt;")
+        log_output.setStyleSheet("""
+            QTextEdit {
+                background-color: #0b1220;
+                color: #e2e8f0;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 10pt;
+                border: 1px solid #334155;
+                border-radius: 8px;
+                padding: 12px;
+            }
+        """)
         right_frame.addWidget(log_output)
 
-        # Progress bar
+        # Status section
+        status_layout = QVBoxLayout()
+        status_layout.setSpacing(8)
+
+        status_header = QLabel("📊 Status")
+        status_header.setStyleSheet("color: #60a5fa; font-size: 14pt; font-weight: bold;")
+        status_layout.addWidget(status_header)
+
         global progress_label
         progress_label = QLabel("Monitoring inactive")
-        progress_label.setStyleSheet("color: white; font-size: 10pt;")
-        right_frame.addWidget(progress_label)
+        progress_label.setStyleSheet("color: #cbd5e1; font-size: 11pt;")
+        status_layout.addWidget(progress_label)
 
         global progress_var
         progress_var = QProgressBar()
         progress_var.setStyleSheet("""
             QProgressBar {
-                background-color: #1a1a1a;
-                border: none;
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
                 text-align: center;
+                color: #e2e8f0;
+                font-size: 10pt;
             }
             QProgressBar::chunk {
-                background-color: #4CAF50;
+                background-color: #3b82f6;
+                border-radius: 6px;
             }
         """)
-        right_frame.addWidget(progress_var)
+        status_layout.addWidget(progress_var)
+
+        right_frame.addLayout(status_layout)
 
         # Logger handler
         self.gui_handler = GUILogHandler(log_output)
@@ -1120,22 +1185,62 @@ class MainWindow(QMainWindow):
     def show_credits(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Credits")
-        dialog.setFixedSize(500, 600)
-        dialog.setStyleSheet("background-color: #1d2636;")
+        dialog.setFixedSize(500, 400)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #0f172a;
+            }
+            QLabel {
+                color: #e2e8f0;
+            }
+            QPushButton {
+                background-color: #3b82f6;
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #60a5fa;
+            }
+        """)
 
         layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
 
-        title_label = QLabel("Credits List")
-        title_label.setStyleSheet("color: white; font-size: 16pt; font-weight: bold;")
+        title_label = QLabel("Credits")
+        title_label.setStyleSheet("color: #60a5fa; font-size: 18pt; font-weight: bold;")
+        title_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(title_label)
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #334155;
+                border-radius: 8px;
+                background-color: #0f172a;
+            }
+            QScrollBar:vertical {
+                background-color: #0f172a;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #3b82f6;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+        """)
         layout.addWidget(scroll_area)
 
         scroll_widget = QWidget()
         scroll_area.setWidget(scroll_widget)
         scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setContentsMargins(16, 16, 16, 16)
+        scroll_layout.setSpacing(12)
 
         credits_data = [
             ("Application Developer", "MrAndiGamesDev (MrAndi Scripted)"),
@@ -1144,15 +1249,19 @@ class MainWindow(QMainWindow):
 
         for section, content in credits_data:
             section_label = QLabel(section)
-            section_label.setStyleSheet("color: #4CAF50; font-size: 12pt; font-weight: bold;")
+            section_label.setStyleSheet("color: #60a5fa; font-size: 12pt; font-weight: bold;")
             scroll_layout.addWidget(section_label)
 
             content_label = QLabel(content)
-            content_label.setStyleSheet("color: white; font-size: 10pt;")
+            content_label.setStyleSheet("color: #e2e8f0; font-size: 11pt;")
+            content_label.setWordWrap(True)
             scroll_layout.addWidget(content_label)
 
+            spacer = QWidget()
+            spacer.setFixedHeight(8)
+            scroll_layout.addWidget(spacer)
+
         close_button = QPushButton("Close")
-        close_button.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; border: none; padding: 8px;")
         close_button.clicked.connect(dialog.accept)
         layout.addWidget(close_button)
 
@@ -1328,7 +1437,7 @@ def detect_operating_system():
         "Darwin": (
             "macOS Operating System",
             "You are currently running on MacOS:\n\n"
-            "1. This application was primarily designed for Linux.\n"
+            "1. This application was primarily designed for Windows.\n"
             "2. macOS support is limited or not available.\n"
             "3. Some features may not work as expected."
         )
@@ -1369,7 +1478,7 @@ def detect_operating_system():
     
     return is_supported
 
-def main():
+def check_os_support_and_run():
     # First, check the operating system
     os_check_result = detect_operating_system()
     # Only proceed with GUI initialization if OS is supported
@@ -1384,4 +1493,4 @@ def main():
         logger.error("Unsupported operating system. Application cannot start.")
 
 if __name__ == "__main__":
-    main()
+    check_os_support_and_run()
