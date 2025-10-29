@@ -1,9 +1,13 @@
-@echo off
+@ECHO OFF
 setlocal
-set "url=https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/requirements.txt"
-set "out=requirements.txt"
-powershell -NoProfile -Command "Invoke-WebRequest -Uri '%url%' -OutFile '%out%'"
-echo Download complete: %out%
-pip install -r %out%
+
+set "URL=https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/requirements.txt"
+set "OUT=requirements.txt"
+
+powershell -NoProfile -Command "Invoke-WebRequest -Uri '%URL%' -OutFile '%OUT%'"
+echo Download complete: %OUT%
+
+pip install -r "%OUT%"
+
 pause
 endlocal
