@@ -3,5 +3,5 @@ set "URL=https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction
 set "OUT=requirements.txt"
 powershell -NoProfile -Command "Invoke-WebRequest -Uri '%URL%' -OutFile '%OUT%'"
 echo Download complete: %OUT%
-pip install -r "%OUT%"
+pip uninstall -r "%OUT%"
 pause
