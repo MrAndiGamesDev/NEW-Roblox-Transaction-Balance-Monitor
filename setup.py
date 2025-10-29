@@ -5,15 +5,12 @@ from time import sleep
 from typing import Optional, List
 from dataclasses import dataclass
 from pathlib import Path
-import psutil  # new dependency to find and kill locking processes
+import psutil
 
 @dataclass
 class Config:
     optimization_lvl: int = 2
-    app_name: str = "Sigma Auto Clicker"
-    version_file: str = "VERSION.txt"
-    collect_modules: str = "Sigma-Auto-Clicker-Py/"
-    icon_path: str = "src/icons/mousepointer.ico"
+    app_name: str = "maindev"
     debug_mode: bool = False
 
 class _FallbackLogger:
@@ -46,11 +43,9 @@ class PyInstallerBuilder:
     def __init__(self, script_file: Optional[str] = None, enable_debug: bool = False):
         self.logger = logger
         self.config = Config()
-        self.script_file = Path(script_file or (sys.argv[1] if len(sys.argv) > 1 else "run.py"))
+        self.script_file = Path(script_file or (sys.argv[1] if len(sys.argv) > 1 else "main.py"))
         self.logger.enable_debug(self.config.debug_mode or enable_debug)
         self.optimization_lvl = self.config.optimization_lvl
-        self.icon_path = self.config.icon_path
-        self.version_file = self.config.version_file
 
         self._validate_script_file()
         self.pyinstaller_args = self._build_pyinstaller_args()
@@ -65,17 +60,7 @@ class PyInstallerBuilder:
             self._exit_script()
 
     def _load_version(self) -> str:
-        self.logger.Log("debug", f"Loading version from: {self.config.version_file}")
-        try:
-            version_path = Path(self.config.version_file)
-            if version_path.exists():
-                version = version_path.read_text(encoding="utf-8").strip()
-                self.logger.Log("debug", f"Version loaded: {version}")
-                return version
-            self.logger.Log("warning", f"Version file '{self.config.version_file}' not found.")
-        except Exception as exc:
-            self.logger.Log("warning", f"Failed to load version from '{self.config.version_file}': {exc}")
-        return ""
+        pass
 
     def _get_executable_name(self) -> str:
         version = self._load_version()
@@ -91,11 +76,7 @@ class PyInstallerBuilder:
             "--onedir",
             "--clean",
             f"--name={self._get_executable_name()}",
-            f"--icon={self.icon_path}",
             f"--optimize={self.config.optimization_lvl}",
-            f"--add-data={self.icon_path};src/icons/",
-            f"--add-data={self.version_file};.",
-            f"--collect-submodules={self.config.collect_modules}",
             "--log-level=WARN",
         ]
 
@@ -127,7 +108,6 @@ class PyInstallerBuilder:
             self.logger.Log("info", f"'{path}' directory not found — skipping.")
             return
 
-        # Try up to 3 times with escalating delays
         for attempt in range(1, 4):
             try:
                 self._kill_locking_processes(path)

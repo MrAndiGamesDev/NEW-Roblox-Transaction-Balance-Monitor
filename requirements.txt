@@ -4,3 +4,4 @@ loguru
 PySide6
 packaging
 Pyinstaller
+psutil

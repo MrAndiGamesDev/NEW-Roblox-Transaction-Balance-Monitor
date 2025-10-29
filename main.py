@@ -7,6 +7,7 @@ import sys
 import platform
 import io
 import webbrowser
+import ctypes
 import traceback
 from io import BytesIO
 from PIL import Image, ImageQt
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
 from PySide6.QtGui import QPixmap, QIcon, QFont, QPalette, QColor, QTextCursor, QDesktopServices
+from ctypes import wintypes
 
 # Global variables for GUI elements
 monitoring_event = None
@@ -199,7 +201,7 @@ DISCORD_WEBHOOK_URL = config["DISCORD_WEBHOOK_URL"]
 ALIVE_TIME = 3600
 MONITORING_ROBUX = False
 DATE_TYPE = config["TOTAL_CHECKS_TYPE"]
-EMOJI_NAME = config.get("DISCORD_EMOJI_NAME", "Robux")
+EMOJI_NAME = config["DISCORD_EMOJI_NAME"]
 EMOJI_ID = config["DISCORD_EMOJI_ID"]
 
 COOKIES = {
@@ -208,13 +210,24 @@ COOKIES = {
 
 # Fetch the authenticated user's ID
 def get_authenticated_user_id():
-    """Fetch the authenticated user's ID from Roblox API.""" 
+    """Fetch the authenticated user's ID from Roblox API."""
     roblox_users_url = "https://users.roblox.com"
     response = rate_limited_request('GET', f"{roblox_users_url}/v1/users/authenticated", cookies=COOKIES)
     if response.status_code == 200:
-        return response.json().get("id")
+        try:
+            data = response.json()
+            user_id = data.get("id")
+            if user_id is not None:
+                logger.info(f"Successfully fetched authenticated user ID: {user_id}")
+                return user_id
+            else:
+                logger.error("User ID not found in response JSON")
+                return None
+        except ValueError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            return None
     else:
-        logger.error("Failed to fetch authenticated user ID.")
+        logger.error(f"Failed to fetch authenticated user ID. Status: {response.status_code}, Response: {response.text}")
         return None
 
 USERID = get_authenticated_user_id()
@@ -287,8 +300,11 @@ def load_last_transaction_data():
 def load_last_robux():
     """Load the last known Robux balance from a separate file.""" 
     if os.path.exists(ROBUX_FILE):
-        with open(ROBUX_FILE, "r") as file:
-            return json.load(file).get("robux", 0)
+        try:
+            with open(ROBUX_FILE, "r") as file:
+                return json.load(file).get("robux", 0)
+        except Exception as e:
+            pass
     else:
         return 0
 
@@ -903,8 +919,8 @@ def main_loop():
             check_interval = 60  # Default check interval
             timer_input.setText("60")
         
-        # Update progress bar using QTimer
-        def update_progress(current_second):
+        # Update progress bar using QTimer on the main GUI thread
+        def schedule_progress_update(current_second):
             if not monitoring_event.is_set():
                 return
             
@@ -915,11 +931,11 @@ def main_loop():
             window.update_status_signal.emit(f"Next check in {time_left} seconds")
             
             if current_second + 1 < check_interval and monitoring_event.is_set():
-                QTimer.singleShot(1000, lambda: update_progress(current_second + 1))
+                QTimer.singleShot(1000, lambda: schedule_progress_update(current_second + 1))
             elif monitoring_event.is_set():
                 main_loop()
         
-        update_progress(0)
+        QTimer.singleShot(0, lambda: schedule_progress_update(0))
         
     except Exception as e:
         logger.error(f"Error in monitoring loop: {str(e)}")
@@ -928,20 +944,51 @@ def main_loop():
 
 class MainWindow(QMainWindow):
     show_error_signal = Signal(str, str)
-    update_progress_signal = Signal(float)
+    update_progress_signal = Signal(int)          # changed to int (0-100)
     update_status_signal = Signal(str)
     update_buttons_signal = Signal(bool, bool)
 
     def __init__(self):
         super().__init__()
+        self._progress_max = 0
+        self._progress_value = 0
         self.init_ui()
         self.connect_signals()
+        self.apply_dark_title_bar()
 
     def connect_signals(self):
         self.show_error_signal.connect(self.show_error_dialog)
         self.update_progress_signal.connect(self.update_progress)
         self.update_status_signal.connect(self.update_status)
         self.update_buttons_signal.connect(self.update_buttons)
+
+    def apply_dark_title_bar(self):
+        """Apply dark mode to the native Windows title bar using ctypes."""
+        if platform.system() == "Windows":
+            try:
+                # Windows 10/11 dark title bar constants
+                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                hwnd = self.winId().__int__()
+                value = ctypes.c_int(1)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_USE_IMMERSIVE_DARK_MODE,
+                    ctypes.byref(value),
+                    ctypes.sizeof(value)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to apply dark title bar: {e}")
+
+    def get_app_icon(self) -> QIcon:
+        try:
+            response = rate_limited_request('GET', icon_url)
+            response.raise_for_status()
+            img_data = BytesIO(response.content)
+            icon = Image.open(img_data)
+            qt_icon = QIcon(QPixmap.fromImage(ImageQt.ImageQt(icon)))
+            self.setWindowIcon(qt_icon)
+        except Exception as e:
+            logger.warning(f"Failed to load application icon: {e}")
 
     def init_ui(self):
         self.setWindowTitle("Roblox Transaction & Robux Monitor")
@@ -988,15 +1035,7 @@ class MainWindow(QMainWindow):
         """)
 
         # Load icon
-        try:
-            response = rate_limited_request('GET', icon_url)
-            response.raise_for_status()
-            img_data = BytesIO(response.content)
-            icon = Image.open(img_data)
-            qt_icon = QIcon(QPixmap.fromImage(ImageQt.ImageQt(icon)))
-            self.setWindowIcon(qt_icon)
-        except Exception as e:
-            logger.warning(f"Failed to load application icon: {e}")
+        self.get_app_icon()
 
         # Central widget
         central_widget = QWidget()
@@ -1160,6 +1199,8 @@ class MainWindow(QMainWindow):
 
         global progress_var
         progress_var = QProgressBar()
+        progress_var.setRange(0, 100)
+        progress_var.setTextVisible(True)
         progress_var.setStyleSheet("""
             QProgressBar {
                 background-color: #1e293b;
@@ -1275,7 +1316,9 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, title, message)
 
     def update_progress(self, value):
+        # value is now 0-100
         progress_var.setValue(value)
+        progress_var.setFormat(f"{value}%")
 
     def update_status(self, text):
         progress_label.setText(text)
