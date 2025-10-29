@@ -10,13 +10,13 @@ import psutil
 @dataclass
 class Config:
     optimization_lvl: int = 2
-    app_name: str = "maindev"
+    app_name: str = "main"
     debug_mode: bool = False
 
 class _FallbackLogger:
     @staticmethod
     def Log(level: str, message: str) -> str:
-        return f"[{level.upper()}] {message}"
+        print(f"[{level.upper()}] {message}")
 
 class _DebugLogger:
     def __init__(self, base_logger):
@@ -77,6 +77,7 @@ class PyInstallerBuilder:
             "--clean",
             f"--name={self._get_executable_name()}",
             f"--optimize={self.config.optimization_lvl}",
+            "--collect-submodules=Roblox-Transaction-Monitor/",
             "--log-level=WARN",
         ]
 
@@ -147,8 +148,6 @@ class PyInstallerBuilder:
         base_name = self.script_file.stem
         possible_specs = [
             Path(f"{base_name}.spec"),
-            Path("Sigma_Auto_Clicker.spec"),
-            Path("SigmaAutoClicker.spec"),
             Path(
                 self._get_executable_name()
                 .replace(" ", "_")
