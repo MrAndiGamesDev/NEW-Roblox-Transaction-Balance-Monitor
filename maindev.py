@@ -946,9 +946,12 @@ class MainWindow(QMainWindow):
         self.update_status_signal.connect(self.update_status)
         self.update_buttons_signal.connect(self.update_buttons)
 
+    def is_windows():
+        return platform.system() == "Windows"
+
     def apply_dark_title_bar(self):
         """Apply dark mode to the native Windows title bar using ctypes."""
-        if platform.system() == "Windows":
+        if self.is_windows():
             try:
                 # Windows 10/11 dark title bar constants
                 DWMWA_USE_IMMERSIVE_DARK_MODE = 20

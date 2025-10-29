@@ -54,6 +54,21 @@ class VirtualEnvManager:
             logger.error(f"Virtual environment Python executable not found at {self.venv_python}")
             return False
 
+        logger.info("Checking pip version...")
+        try:
+            result = subprocess.run(
+                [str(self.venv_python), "-m", "pip", "list", "--outdated", "--format=json"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            outdated = result.stdout.strip()
+            if '"name": "pip"' not in outdated:
+                logger.info("You are on the latest version of pip.")
+                return True
+        except subprocess.CalledProcessError:
+            logger.warning("Unable to check pip version, proceeding with upgrade attempt.")
+
         logger.info("Upgrading pip inside the virtual environment...")
         return self._run_subprocess(
             [str(self.venv_python), "-m", "pip", "install", "--upgrade", "pip"],
