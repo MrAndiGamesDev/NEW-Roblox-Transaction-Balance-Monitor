@@ -38,7 +38,7 @@ Run the application by executing this command
 
 Install Requirements packages
 ```
-powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/install.bat').Content | batch"
+powershell -ep bypass -Command "IWR 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/install.bat' | % Content | cmd"
 ```
 Python Stable Version
 ```
@@ -50,7 +50,7 @@ powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/
 ```
 unInstall packages
 ```
-powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/uninstall.bat').Content | batch"
+powershell -ep bypass -Command "IWR 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/uninstall.bat' | % Content | cmd"
 ```
 
 ## License
