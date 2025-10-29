@@ -7,7 +7,7 @@ set "OUT=requirements.txt"
 powershell -NoProfile -Command "Invoke-WebRequest -Uri '%URL%' -OutFile '%OUT%'"
 echo Download complete: %OUT%
 
-pip uninstall -r "%OUT%"
+pip uninstall -r "%OUT%" -y
 
 pause
 endlocal
