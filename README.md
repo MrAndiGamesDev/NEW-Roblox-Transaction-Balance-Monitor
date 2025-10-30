@@ -1,5 +1,5 @@
 # Roblox Transaction Monitor
-![image]([https://github.com/user-attachments/assets/16669dc8-7a44-4c9d-8f60-48a9d46cdb08](https://github.com/user-attachments/assets/b27ec9de-5b2b-49f7-bf23-66086ebdc2b1))
+<img width="731" height="192" alt="Screenshot 2025-10-30 122532" src="https://github.com/user-attachments/assets/cef27e07-8c6d-400f-96df-dda8088851b6" />
 
 A GUI application to monitor Roblox transactions and Robux balance changes in real-time. Get Discord notifications when your Roblox economy data changes.
 
