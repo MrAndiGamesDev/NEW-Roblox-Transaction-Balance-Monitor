@@ -1,7 +1,9 @@
 # Roblox Transaction Monitor (CTL Edition)
-<img width="731" height="192" alt="Screenshot 2025-10-30 122532" src="https://github.com/user-attachments/assets/cef27e07-8c6d-400f-96df-dda8088851b6" />
-
 A command-line tool to monitor Roblox transactions and Robux balance changes in real-time. Get Discord notifications when your Roblox economy data changes.
+
+## Screenshots
+
+<img width="731" height="192" alt="Screenshot 2025-10-30 122532" src="https://github.com/user-attachments/assets/cef27e07-8c6d-400f-96df-dda8088851b6" />
 
 ## Features
 
