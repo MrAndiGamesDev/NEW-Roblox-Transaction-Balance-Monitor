@@ -25,7 +25,7 @@ class Configuration:
         "DISCORD_WEBHOOK_URL": "",
         "ROBLOSECURITY": "",
         "DISCORD_EMOJI_ID": "",
-        "DISCORD_EMOJI_NAME": "robux",
+        "DISCORD_EMOJI_NAME": "",
         "CHECK_INTERVAL": "60",
         "TOTAL_CHECKS_TYPE": "Day"
     }
@@ -35,6 +35,7 @@ APP_DIR = Configuration.APP_DIR
 CONFIG_FILE = Configuration.CONFIG_FILE
 STORAGE_DIR = Configuration.STORAGE_DIR
 DEFAULT_CONFIG = Configuration.DEFAULT_CONFIG
+_last_call = 0
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Terminal Colors
@@ -76,7 +77,6 @@ def rate_limited_request(*args, **kwargs):
         time.sleep(sleep)
     _last_call = time.time()
     return requests.request(*args, **kwargs)
-_last_call = 0
 
 def abbreviate_number(num: int) -> str:
     abs_num = abs(num)
@@ -393,7 +393,7 @@ def setup_wizard():
     webhook = getpass(f"{Colors.YELLOW}Discord Webhook URL (Hidden):{Colors.RESET} ").strip()
     cookie = getpass(f"{Colors.YELLOW}.ROBLOSECURITY Cookie (Hidden):{Colors.RESET} ").strip()
     emoji_id = input(f"{Colors.YELLOW}Emoji ID (Hidden):{Colors.RESET} ").strip()
-    emoji_name = input(f"{Colors.YELLOW}Emoji Name (default: robux):{Colors.RESET} ").strip() or "robux"
+    emoji_name = input(f"{Colors.YELLOW}Emoji Name:{Colors.RESET} ").strip()
     interval = input(f"{Colors.YELLOW}Check Interval (seconds, default: 60):{Colors.RESET} ").strip() or "60"
     timeframe = input(f"{Colors.YELLOW}Timeframe (Day/Week/Month/Year, default: Day):{Colors.RESET} ").strip() or "Day"
 
