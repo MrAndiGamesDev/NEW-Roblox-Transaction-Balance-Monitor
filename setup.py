@@ -7,6 +7,23 @@ from typing import Optional, List
 from dataclasses import dataclass
 from pathlib import Path
 
+# --- custom colored message helper (scratch-built) -----------------
+def _color_print(level: str, message: str) -> None:
+    """Print a colored message based on level."""
+    colors = {
+        "debug": "\033[90m",      # grey
+        "info": "\033[94m",       # blue
+        "warning": "\033[93m",    # yellow
+        "success": "\033[92m",    # green
+        "error": "\033[91m",      # red
+        "critical": "\033[95m",  # magenta
+        "trace": "\033[96m",      # cyan
+        "notice": "\033[97m",     # bright white
+    }
+    reset = "\033[0m"
+    color = colors.get(level.lower(), "")
+    print(f"{color}[{level.upper()}] {message}{reset}")
+
 @dataclass
 class Config:
     optimization_lvl: int = 2
@@ -17,7 +34,8 @@ class Config:
 class _FallbackLogger:
     @staticmethod
     def Log(level: str, message: str) -> str:
-        print(f"[{level.upper()}] {message}")
+        _color_print(level, message)
+        return message
 
 class _DebugLogger:
     def __init__(self, base_logger):
@@ -60,9 +78,6 @@ class PyInstallerBuilder:
             self.logger.Log("error", f"Script file '{self.script_file}' not found.")
             self._exit_script()
 
-    def _load_version(self) -> str:
-        pass
-
     def _get_executable_name(self) -> str:
         name = f"{self.config.app_title}"
         self.logger.Log("debug", f"Executable name determined: {name}")
@@ -81,7 +96,7 @@ class PyInstallerBuilder:
             f"--icon={self._get_icon_path()}",
             f"--name={self._get_executable_name()}",
             f"--optimize={self.config.optimization_lvl}",
-            f"--add-data={self._get_icon_path()};."
+            f"--add-data={self._get_icon_path()};.",
             "--collect-submodules=Roblox-Transaction-Monitor/",
             "--log-level=WARN",
         ]
@@ -218,4 +233,5 @@ class PyInstallerBuilder:
             self._exit_script(cleanup_delay)
 
 if __name__ == "__main__":
-    PyInstallerBuilder().run()
+    PyToExeConverter = PyInstallerBuilder()
+    PyToExeConverter.run()
