@@ -11,6 +11,7 @@ from pathlib import Path
 class Config:
     optimization_lvl: int = 2
     app_name: str = "main"
+    app_title: str = "Roblox Transaction Monitor (CTL Edition)"
     debug_mode: bool = False
 
 class _FallbackLogger:
@@ -63,8 +64,7 @@ class PyInstallerBuilder:
         pass
 
     def _get_executable_name(self) -> str:
-        version = self._load_version()
-        name = f"{self.config.app_name} (v{version})" if version else self.config.app_name
+        name = f"{self.config.app_title}"
         self.logger.Log("debug", f"Executable name determined: {name}")
         return name
 
