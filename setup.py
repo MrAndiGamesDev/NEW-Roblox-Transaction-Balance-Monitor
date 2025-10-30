@@ -1,11 +1,11 @@
 import shutil
 import sys
 import subprocess
+import psutil
 from time import sleep
 from typing import Optional, List
 from dataclasses import dataclass
 from pathlib import Path
-import psutil
 
 @dataclass
 class Config:
@@ -68,6 +68,9 @@ class PyInstallerBuilder:
         self.logger.Log("debug", f"Executable name determined: {name}")
         return name
 
+    def _get_icon_path(self) -> str:
+        return "Robux.ico"
+
     def _build_pyinstaller_args(self) -> List[str]:
         return [
             str(self.script_file),
@@ -75,8 +78,10 @@ class PyInstallerBuilder:
             "--console",
             "--onefile",
             "--clean",
+            f"--icon={self._get_icon_path()}",
             f"--name={self._get_executable_name()}",
             f"--optimize={self.config.optimization_lvl}",
+            f"--add-data={self._get_icon_path()};."
             "--collect-submodules=Roblox-Transaction-Monitor/",
             "--log-level=WARN",
         ]
@@ -213,5 +218,4 @@ class PyInstallerBuilder:
             self._exit_script(cleanup_delay)
 
 if __name__ == "__main__":
-    PyToExeConverter = PyInstallerBuilder()
-    PyToExeConverter.run()
+    PyInstallerBuilder().run()
