@@ -16,18 +16,25 @@ from typing import Dict, Any, Optional
 # ─────────────────────────────────────────────────────────────────────────────
 #  Configuration
 # ─────────────────────────────────────────────────────────────────────────────
-APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction_history")
-CONFIG_FILE = os.path.join(APP_DIR, "config.json")
-STORAGE_DIR = os.path.join(APP_DIR, "transaction_info")
+class Configuration:
+    APP_DIR = os.path.join(os.path.expanduser("~"), ".roblox_transaction_history")
+    CONFIG_FILE = os.path.join(APP_DIR, "config.json")
+    STORAGE_DIR = os.path.join(APP_DIR, "transaction_info")
 
-DEFAULT_CONFIG = {
-    "DISCORD_WEBHOOK_URL": "",
-    "ROBLOSECURITY": "",
-    "DISCORD_EMOJI_ID": "",
-    "DISCORD_EMOJI_NAME": "robux",
-    "CHECK_INTERVAL": "60",
-    "TOTAL_CHECKS_TYPE": "Day"
-}
+    DEFAULT_CONFIG = {
+        "DISCORD_WEBHOOK_URL": "",
+        "ROBLOSECURITY": "",
+        "DISCORD_EMOJI_ID": "",
+        "DISCORD_EMOJI_NAME": "robux",
+        "CHECK_INTERVAL": "60",
+        "TOTAL_CHECKS_TYPE": "Day"
+    }
+
+# Convenience aliases for backward compatibility
+APP_DIR = Configuration.APP_DIR
+CONFIG_FILE = Configuration.CONFIG_FILE
+STORAGE_DIR = Configuration.STORAGE_DIR
+DEFAULT_CONFIG = Configuration.DEFAULT_CONFIG
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Terminal Colors
@@ -382,9 +389,9 @@ def setup_wizard():
     print(f"{Colors.BOLD}{Colors.CYAN}Roblox Monitor CLI - First Time Setup{Colors.RESET}\n")
     print("Enter the following details (input is hidden for security):\n")
 
-    webhook = getpass(f"{Colors.YELLOW}Discord Webhook URL:{Colors.RESET} ").strip()
-    cookie = getpass(f"{Colors.YELLOW}.ROBLOSECURITY Cookie:{Colors.RESET} ").strip()
-    emoji_id = getpass(f"{Colors.YELLOW}Emoji ID:{Colors.RESET} ").strip()
+    webhook = getpass(f"{Colors.YELLOW}Discord Webhook URL (Hidden):{Colors.RESET} ").strip()
+    cookie = getpass(f"{Colors.YELLOW}.ROBLOSECURITY Cookie (Hidden):{Colors.RESET} ").strip()
+    emoji_id = getpass(f"{Colors.YELLOW}Emoji ID (Hidden):{Colors.RESET} ").strip()
     emoji_name = input(f"{Colors.YELLOW}Emoji Name (default: robux):{Colors.RESET} ").strip() or "robux"
     interval = input(f"{Colors.YELLOW}Check Interval (seconds, default: 60):{Colors.RESET} ").strip() or "60"
     timeframe = input(f"{Colors.YELLOW}Timeframe (Day/Week/Month/Year, default: Day):{Colors.RESET} ").strip() or "Day"
