@@ -9,7 +9,7 @@ import time
 import signal
 import threading
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from getpass import getpass  # <-- Hides input
 from typing import Dict, Any, Optional
 
@@ -52,12 +52,12 @@ class Colors:
 # ─────────────────────────────────────────────────────────────────────────────
 #  Censoring Utility
 # ─────────────────────────────────────────────────────────────────────────────
-def censor(text: str, show_start: int = 20, show_end: int = 10) -> str:
+def censor(text: str, *, show_start: int = 20, show_end: int = 10) -> str:
     if not text:
         return ""
     if len(text) <= show_start + show_end:
         return "*" * len(text)
-    return text[:show_start] + "..." + text[-show_end:]
+    return f"{text[:show_start]}{'*' * show_end}"
 
 def censor_webhook(url: str) -> str:
     return censor(url, show_start=20, show_end=10) if url else ""
@@ -246,21 +246,22 @@ class DiscordNotifier:
                 {"name": "Before", "value": f"{self.emoji} {abbreviate_number(old)}", "inline": True},
                 {"name": "After", "value": f"{self.emoji} {abbreviate_number(new)}", "inline": True}
             ],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
     def account_status(self, status: dict, previous: dict = None):
+        if previous and previous == status:
+            return
         color = 0xff0000 if status.get("is_banned") else 0x00ff00
-        desc = "Status changed!" if previous and previous != status else None
         self.send({
             "title": f"Account {'BANNED' if status.get('is_banned') else 'ACTIVE'}",
-            "description": desc,
+            "description": "Status changed!",
             "color": color,
             "fields": [
                 {"name": "User", "value": status.get("username", "Unknown"), "inline": True},
                 {"name": "Created", "value": status.get("created", "Unknown"), "inline": True}
             ],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
     def api_downtime(self, status: str, duration: float = None):
@@ -272,7 +273,7 @@ class DiscordNotifier:
             "title": f"Roblox API {status}",
             "color": color,
             "fields": fields,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -387,11 +388,11 @@ class Monitor:
 # ─────────────────────────────────────────────────────────────────────────────
 def setup_wizard():
     print(f"{Colors.BOLD}{Colors.CYAN}Roblox Monitor CLI - First Time Setup{Colors.RESET}\n")
-    print("Enter the following details (input is hidden for security):\n")
+    print("Enter the following details (some input is hidden for security):\n")
 
     webhook = getpass(f"{Colors.YELLOW}Discord Webhook URL (Hidden):{Colors.RESET} ").strip()
     cookie = getpass(f"{Colors.YELLOW}.ROBLOSECURITY Cookie (Hidden):{Colors.RESET} ").strip()
-    emoji_id = getpass(f"{Colors.YELLOW}Emoji ID (Hidden):{Colors.RESET} ").strip()
+    emoji_id = input(f"{Colors.YELLOW}Emoji ID (Hidden):{Colors.RESET} ").strip()
     emoji_name = input(f"{Colors.YELLOW}Emoji Name (default: robux):{Colors.RESET} ").strip() or "robux"
     interval = input(f"{Colors.YELLOW}Check Interval (seconds, default: 60):{Colors.RESET} ").strip() or "60"
     timeframe = input(f"{Colors.YELLOW}Timeframe (Day/Week/Month/Year, default: Day):{Colors.RESET} ").strip() or "Day"
