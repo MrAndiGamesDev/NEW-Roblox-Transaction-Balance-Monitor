@@ -23,7 +23,7 @@ A command-line tool to monitor Roblox transactions and Robux balance changes in 
 
 ## TODO
 - [x] Add time-range filters (day / month / year / total)
-- [ ] Package as a single portable executable
+- [x] Package as a single portable executable
 
 ## Configuration
 Create a `config.json` file with:
