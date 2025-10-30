@@ -1,5 +1,5 @@
 # Roblox Transaction Monitor
-![image](https://github.com/user-attachments/assets/16669dc8-7a44-4c9d-8f60-48a9d46cdb08)
+![image]([https://github.com/user-attachments/assets/16669dc8-7a44-4c9d-8f60-48a9d46cdb08](https://github.com/user-attachments/assets/b27ec9de-5b2b-49f7-bf23-66086ebdc2b1))
 
 A GUI application to monitor Roblox transactions and Robux balance changes in real-time. Get Discord notifications when your Roblox economy data changes.
 
@@ -33,7 +33,6 @@ The application requires the following configuration:
 6. Total Checks (Transaction/Balance) Like (Day Month Year)
 
 ## Usage
-
 Run the application by executing this command
 
 Install Requirements packages
@@ -52,6 +51,5 @@ unInstall packages
 ```
 powershell -ep bypass -Command "IWR 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/uninstall.bat' | % Content | cmd"
 ```
-
 ## License
 This project is licensed under the Apache License - see the LICENSE file for details.
