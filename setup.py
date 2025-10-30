@@ -1,6 +1,7 @@
 import shutil
 import sys
 import subprocess
+import argparse
 import psutil
 from time import sleep
 from typing import Optional, List
@@ -232,6 +233,39 @@ class PyInstallerBuilder:
             self.logger.Log("error", f"Build process failed: {exc}")
             self._exit_script(cleanup_delay)
 
+class AddArguments:
+    def _parse_cli(self) -> argparse.Namespace:
+        parser = argparse.ArgumentParser(
+            description="Build an executable from a Python script using PyInstaller."
+        )
+        args = [
+            {
+                "name": "--target-script",
+                "kwargs": {
+                    "nargs": "?",
+                    "default": "main.py",
+                    "help": "Python script to build (default: main.py)",
+                },
+            },
+            {
+                "name": "--debug",
+                "kwargs": {
+                    "action": "store_true",
+                    "help": "Enable debug logging",
+                },
+            },
+        ]
+        for arg in args:
+            parser.add_argument(arg["name"], **arg["kwargs"])
+        return parser.parse_args()
+
+    def build_executable(self) -> None:
+        args = self._parse_cli()
+        builder = PyInstallerBuilder(
+            script_file=args.target_script, enable_debug=args.debug
+        )
+        builder.run()
+
 if __name__ == "__main__":
-    PyToExeConverter = PyInstallerBuilder()
-    PyToExeConverter.run()
+    AddArgs = AddArguments()
+    AddArgs.build_executable()
