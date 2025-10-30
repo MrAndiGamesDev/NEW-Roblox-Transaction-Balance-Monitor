@@ -94,6 +94,26 @@ def safe_write(path: str, data: dict):
     os.replace(tmp, path)
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Update Checker
+# ─────────────────────────────────────────────────────────────────────────────
+def check_for_update():
+    try:
+        repoownername = "MrAndiGamesDev"
+        repo = f"{repoownername}/Roblox-Transaction-Monitor-CTL-Edition"
+        url = f"https://api.github.com/repos/{repo}/releases/latest"
+        r = requests.get(url, timeout=5)
+        if r.status_code == 200:
+            latest = r.json()
+            latest_tag = latest.get("tag_name", "")
+            # Current version hard-coded here; bump when you tag a release
+            current_tag = "v1.0.0"
+            if latest_tag and latest_tag != current_tag:
+                print(f"{Colors.YELLOW}Update available: {latest_tag} (you have {current_tag}){Colors.RESET}")
+                print(f"{Colors.CYAN}Download: {latest.get('html_url', '')}{Colors.RESET}\n")
+    except Exception:
+        pass
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Config Manager
 # ─────────────────────────────────────────────────────────────────────────────
 class Config:
@@ -464,5 +484,6 @@ class Setup_Wizard:
             raise SystemExit(1)
 
 if __name__ == "__main__":
+    check_for_update()
     Setup = Setup_Wizard()
     Setup.start()
