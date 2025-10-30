@@ -12,7 +12,7 @@ from pathlib import Path
 def _color_print(level: str, message: str) -> None:
     """Print a colored message based on level."""
     colors = {
-        "debug": "\033[90m",      # grey
+        "debug": "\033[37m",      # light grey (more readable than dark grey)
         "info": "\033[94m",       # blue
         "warning": "\033[93m",    # yellow
         "success": "\033[92m",    # green
