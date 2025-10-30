@@ -469,6 +469,7 @@ class Setup_Wizard:
     #  Start
     # ─────────────────────────────────────────────────────────────────────────────
     def start(self):
+        check_for_update()
         try:
             # First run?
             if not self.config["ROBLOSECURITY"]:
@@ -488,6 +489,5 @@ class Setup_Wizard:
             raise SystemExit(1)
 
 if __name__ == "__main__":
-    check_for_update()
     Setup = Setup_Wizard()
     Setup.start()
