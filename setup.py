@@ -98,6 +98,7 @@ class PyInstallerBuilder:
             f"--name={self._get_executable_name()}",
             f"--optimize={self.config.optimization_lvl}",
             f"--add-data={self._get_icon_path()};.",
+            f"--add-data=VERSION;.",
             "--collect-submodules=Roblox-Transaction-Monitor/",
             "--log-level=WARN",
         ]
