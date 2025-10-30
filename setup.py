@@ -73,7 +73,7 @@ class PyInstallerBuilder:
             str(self.script_file),
             "--noconfirm",
             "--console",
-            "--onedir",
+            "--onefile",
             "--clean",
             f"--name={self._get_executable_name()}",
             f"--optimize={self.config.optimization_lvl}",
