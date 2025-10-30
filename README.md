@@ -48,7 +48,7 @@ Python Dev Version
 ```
 powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/maindev.py').Content | python"
 ```
-unInstall packages
+UnInstall dependencies
 ```
 powershell -ep bypass -Command "IWR 'https://raw.githubusercontent.com/MrAndiGamesDev/NEW-Roblox-Transaction-Balance-Monitor/main/uninstall.bat' | % Content | cmd"
 ```
